@@ -1,0 +1,18 @@
+# Binaries & Executables
+watchdog-agent
+*.exe
+*.exe.test
+*.out
+*.app
+
+# Logs & Data
+*.log
+logs/
+nats/logs/
+nats/data/
+data/
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/

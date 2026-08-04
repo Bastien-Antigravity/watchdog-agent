@@ -1,0 +1,13 @@
+# [FLEET-ARCHITECT] Continuous Integration
+# Sync-ID: 2026-05-11-GLOBAL-001
+name: Fleet CI
+on:
+  push:
+    branches: [ develop, main ]
+  pull_request:
+    branches: [ develop, main ]
+
+jobs:
+  fleet-ci:
+    uses: Bastien-Antigravity/fleet-operation-brain/.github/workflows/master-ci.yml@develop
+    secrets: inherit
