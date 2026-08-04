@@ -1,0 +1,17 @@
+# [FLEET-ARCHITECT] Standardized Dependabot
+# Sync-ID: 2026-05-11-GLOBAL-001
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
