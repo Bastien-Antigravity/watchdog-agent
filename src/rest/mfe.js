@@ -25,9 +25,11 @@ class WatchdogAgentMFE extends HTMLElement {
                 .mfe-container {
                     font-family: var(--font-sans, 'Inter', sans-serif);
                     color: var(--color-text-primary, #e2e8f0);
-                    max-width: 1100px;
+                    width: 100%;
+                    max-width: var(--content-max-width, 1400px);
                     margin: 0 auto;
-                    padding: 20px;
+                    padding: clamp(1.25rem, 2.5vh, 2.25rem) clamp(1.25rem, 3vw, 2.5rem) 3.5rem;
+                    box-sizing: border-box;
                 }
                 .mfe-header {
                     display: flex;

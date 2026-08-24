@@ -1,0 +1,17 @@
+services:
+  watchdog-agent:
+    build:
+      context: ..
+      dockerfile: watchdog-agent/Dockerfile
+    image: ghcr.io/bastien-antigravity/watchdog-agent:${TAG:-latest}
+    container_name: watchdog-agent
+    restart: unless-stopped
+    ports:
+      - "${WA_IP:-127.0.0.1}:${WA_PORT:-8090}:${WA_PORT:-8090}"
+    networks:
+      - teleremote-network
+    labels: [ com.centurylinklabs.watchtower.enable=true ]
+
+networks:
+  teleremote-network:
+    name: teleremote-network

@@ -75,7 +75,7 @@ func main() {
 	}
 	defer lockFile.Close()
 
-	// Resolve ChromaDB IP and Port from capabilities
+	// Resolve Vector DB IP and Port from capabilities
 	vectorDBIP := "127.0.0.1"
 	vectorDBPort := "8000"
 	if capMap, ok := cfg.Capabilities["rag_engine"].(map[string]interface{}); ok {
