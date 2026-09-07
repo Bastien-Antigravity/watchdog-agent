@@ -17,20 +17,25 @@ type SymlinkTarget struct {
 func HealSymlinks(rootDir string) error {
 	supervisor.LogInfo("watchdog", "Healing/verifying ecosystem configuration symlinks...")
 
+	baseConfigPath := "docker-deployment/shared-config/native.yaml"
+	if _, err := os.Stat(filepath.Join(rootDir, baseConfigPath)); os.IsNotExist(err) {
+		baseConfigPath = "shared-config/native.yaml"
+	}
+
 	targets := []SymlinkTarget{
-		{"standalone.yaml", "shared-config/standalone.yaml"},
-		{"config-server/standalone.yaml", "../shared-config/standalone.yaml"},
-		{"config-server/cmd/config-server/standalone.yaml", "../../../shared-config/standalone.yaml"},
-		{"log-server/standalone.yaml", "../shared-config/standalone.yaml"},
-		{"notif-server/standalone.yaml", "../shared-config/standalone.yaml"},
-		{"notif-server/cmd/notif-server/standalone.yaml", "../../../shared-config/standalone.yaml"},
-		{"tele-remote/standalone.yaml", "../shared-config/standalone.yaml"},
-		{"tele-remote/cmd/tele-remote/standalone.yaml", "../../../shared-config/standalone.yaml"},
-		{"web-interface/standalone.yaml", "../shared-config/standalone.yaml"},
-		{"web-interface/cmd/web-interface/standalone.yaml", "../../../shared-config/standalone.yaml"},
-		{"watchdog-agent/standalone.yaml", "../shared-config/standalone.yaml"},
-		{"obsidian-brain/08-Base-Scripts/standalone.yaml", "../../shared-config/standalone.yaml"},
-		{"obsidian-brain/09-RAG-Engine/standalone.yaml", "../../shared-config/standalone.yaml"},
+		{"standalone.yaml", baseConfigPath},
+		{"config-server/standalone.yaml", "../" + baseConfigPath},
+		{"config-server/cmd/config-server/standalone.yaml", "../../../" + baseConfigPath},
+		{"log-server/standalone.yaml", "../" + baseConfigPath},
+		{"notif-server/standalone.yaml", "../" + baseConfigPath},
+		{"notif-server/cmd/notif-server/standalone.yaml", "../../../" + baseConfigPath},
+		{"tele-remote/standalone.yaml", "../" + baseConfigPath},
+		{"tele-remote/cmd/tele-remote/standalone.yaml", "../../../" + baseConfigPath},
+		{"web-interface/standalone.yaml", "../" + baseConfigPath},
+		{"web-interface/cmd/web-interface/standalone.yaml", "../../../" + baseConfigPath},
+		{"watchdog-agent/standalone.yaml", "../" + baseConfigPath},
+		{"obsidian-brain/08-Base-Scripts/standalone.yaml", "../../" + baseConfigPath},
+		{"obsidian-brain/09-RAG-Engine/standalone.yaml", "../../" + baseConfigPath},
 	}
 
 	for _, t := range targets {

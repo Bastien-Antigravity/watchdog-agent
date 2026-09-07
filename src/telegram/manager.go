@@ -108,7 +108,7 @@ func SetupTelegram(appConfig *toolbox_config.AppConfig, controller core.Watchdog
 		logger.Warning("Tele-Remote capability not found or configured: %v", err)
 		return
 	}
-	port := 50051
+	port := 1863
 	if teleCap.Port != "" {
 		fmt.Sscanf(teleCap.Port, "%d", &port)
 	}

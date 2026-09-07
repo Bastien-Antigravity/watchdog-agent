@@ -10,8 +10,11 @@ The `watchdog-agent` is a modular, cross-platform Go-based supervisor that coord
 
 - **Process Supervision**: Supervises child processes, capturing stdout/stderr and routing them with service-specific prefixes and colors.
 - **Dependency Topological Ordering**: Validates dependency graphs at startup to detect loop deadlocks and missing services, blocking process launch until sibling dependencies are healthy.
+- **Multi-Node Autonomous Filtering**: Uses `utils.IsLocal(svc.IP)` to automatically supervise only services assigned to the local node, skipping remote nodes (cloud VPS or external machines) without requiring distinct configs.
+- **Dynamic NATS & Bus Management**: Dynamically launches and binds `nats-server` to configured IPs and ports (`-a <ip> -p <port> -c <config> -js`), maintaining parity across native and container stacks.
 - **Cross-Platform Port Pruning**: Automatically detects and terminates orphaned processes occupying target ports using native group/tree termination (Unix process groups and Windows `taskkill`).
-- **Telemetry Integration**: Periodically pings external dependencies (**TimescaleDB** and **RAG MCP Server**) to verify connectivity, reporting statuses on the dashboard.
+- **Telemetry Integration**: Periodically pings external dependencies (**TimescaleDB**, **NATS**, and **RAG MCP Server**) to verify connectivity, reporting statuses on the dashboard.
+- **Dynamic Tele-Remote Bus**: Connects to `tele-remote` on port `1863` via gRPC to publish dynamic menus and bot controls.
 - **Auto-Boot & Remote DB Launch**: Supports triggering cross-platform database startups (Docker, macOS Brew, Linux systemd, Windows Services) both automatically at boot and on-demand from the web UI.
 - **OpenMFE Web Dashboard**: Serves a dynamic loader script with integrated cache-busting and client-side reload headers.
 - **Single-Instance Locking**: Obtains a secure file lock on `.watchdog-agent.lock` using Unix `Flock` or Windows exclusive `CreateFile` calls.

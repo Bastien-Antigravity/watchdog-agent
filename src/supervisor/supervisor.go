@@ -136,7 +136,11 @@ func MonitorAndSupervise(svc *Service, baseEnv []string, localIPs map[string]boo
 
 		// 2. Clear port just in case it is occupied by an orphaned instance
 		if svc.Port != "" {
-			addr := net.JoinHostPort("127.0.0.1", svc.Port)
+			checkHost := svc.IP
+			if checkHost == "" {
+				checkHost = "127.0.0.1"
+			}
+			addr := net.JoinHostPort(checkHost, svc.Port)
 			for {
 				if !IsPortListening(addr, 100*time.Millisecond) {
 					break

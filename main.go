@@ -12,10 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
+	toolbox_bootstrap "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/bootstrap"
 	toolbox_lifecycle "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/lifecycle"
-	unilog "github.com/Bastien-Antigravity/universal-logger/src/bootstrap"
-	unilog_config "github.com/Bastien-Antigravity/universal-logger/src/config"
 	watchdog_config "github.com/Bastien-Antigravity/watchdog-agent/src/config"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/control"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/rest"
@@ -46,17 +44,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Load ecosystem configuration
-	cfg, err := config.LoadConfig(*profileFlag, nil)
-	if err != nil {
-		supervisor.LogError("watchdog", "Failed to load configuration: %v", err)
-		os.Exit(1)
-	}
-
-	// Initialize Logger
-	_, appLogger := unilog.Init("watchdog", *profileFlag, "minimal", "INFO", false, &unilog_config.DistConfig{Config: cfg.Config})
+	// Load ecosystem configuration & Initialize Logger
+	cfg, appLogger := toolbox_bootstrap.BootstrapService("watchdog-agent")
 	defer appLogger.Close()
-	cfg.Logger = appLogger
 	supervisor.Logger = appLogger
 
 	// Detect local host IPs to determine local service assignments
@@ -75,22 +65,23 @@ func main() {
 	}
 	defer lockFile.Close()
 
-	// Resolve Vector DB IP and Port from capabilities
-	vectorDBIP := "127.0.0.1"
+	// Resolve Vector DB Port from capabilities
 	vectorDBPort := "8000"
 	if capMap, ok := cfg.Capabilities["rag_engine"].(map[string]interface{}); ok {
 		if vdb, ok := capMap["vector_db"].(map[string]interface{}); ok {
-			if ip, exists := vdb["ip"]; exists {
-				vectorDBIP = fmt.Sprintf("%v", ip)
-			}
 			if port, exists := vdb["port"]; exists {
 				vectorDBPort = fmt.Sprintf("%v", port)
 			}
 		}
 	}
 
+	defaultHost := os.Getenv("HOST_IP")
+	if defaultHost == "" {
+		defaultHost = "127.0.0.1"
+	}
+
 	// Initialize the topologies registry of services
-	supervisor.RegisterServices(rootDir, vectorDBIP, vectorDBPort, cfg)
+	supervisor.RegisterServices(rootDir, defaultHost, vectorDBPort, cfg)
 
 	// Validate registry topologies
 	if err := supervisor.ValidateRegistry(); err != nil {
@@ -98,17 +89,48 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Base environment to inject to children
-	baseEnv := os.Environ()
+	// Base environment to inject to children (filter out watchdog-specific overrides)
+	var filteredEnv []string
+	for _, envVar := range os.Environ() {
+		if !strings.HasPrefix(envVar, "LOGGER_PROFILE=") {
+			filteredEnv = append(filteredEnv, envVar)
+		}
+	}
+	baseEnv := filteredEnv
 
-	// Inject MFE and Base Scripts configurations for the supervisor sequence
+	// Inherit or inject default MFE and Base Scripts configurations
+	wbIP := os.Getenv("WB_IP")
+	if wbIP == "" {
+		wbIP = defaultHost
+	}
+	wbPort := os.Getenv("WB_PORT")
+	if wbPort == "" {
+		wbPort = "5000"
+	}
+	wbGrpcIP := os.Getenv("WB_GRPC_IP")
+	if wbGrpcIP == "" {
+		wbGrpcIP = defaultHost
+	}
+	wbGrpcPort := os.Getenv("WB_GRPC_PORT")
+	if wbGrpcPort == "" {
+		wbGrpcPort = "8001"
+	}
+	bsIP := os.Getenv("BS_IP")
+	if bsIP == "" {
+		bsIP = defaultHost
+	}
+	bsPort := os.Getenv("BS_PORT")
+	if bsPort == "" {
+		bsPort = "8085"
+	}
+
 	baseEnv = append(baseEnv,
-		"WB_IP=127.0.0.1",
-		"WB_PORT=8000",
-		"WB_GRPC_IP=127.0.0.1",
-		"WB_GRPC_PORT=8001",
-		"BS_IP=127.0.0.1",
-		"BS_PORT=8085",
+		fmt.Sprintf("WB_IP=%s", wbIP),
+		fmt.Sprintf("WB_PORT=%s", wbPort),
+		fmt.Sprintf("WB_GRPC_IP=%s", wbGrpcIP),
+		fmt.Sprintf("WB_GRPC_PORT=%s", wbGrpcPort),
+		fmt.Sprintf("BS_IP=%s", bsIP),
+		fmt.Sprintf("BS_PORT=%s", bsPort),
 	)
 
 	// Compile local binaries if required (e.g. if --build=true)
@@ -216,7 +238,7 @@ func main() {
 				webPort = webSvc.Port
 			} else {
 				webIP = "127.0.0.1"
-				webPort = "8000"
+				webPort = "5000"
 			}
 			regUrl := fmt.Sprintf("http://%s:%s/api/v1/register", webIP, webPort)
 
