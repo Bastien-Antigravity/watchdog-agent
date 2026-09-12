@@ -11,6 +11,7 @@ var Logger unilog_ifaces.Logger
 
 // ANSI Color codes for prefixed service logging
 const (
+	ColorRed          = "\033[1;31m" // Bold Red
 	ColorWatchdog     = "\033[1;35m" // Bold Purple
 	ColorLogServer    = "\033[1;36m" // Bold Cyan
 	ColorConfigServer = "\033[1;32m" // Bold Green

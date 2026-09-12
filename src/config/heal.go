@@ -48,9 +48,9 @@ func HealSymlinks(rootDir string) error {
 		lInfo, err := os.Lstat(absPath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				supervisor.LogInfo("watchdog", "Creating config symlink: %s -> %s", t.Path, t.Target)
-				if err := os.Symlink(t.Target, absPath); err != nil {
-					return fmt.Errorf("failed to create symlink %s: %w", absPath, err)
+				supervisor.LogInfo("watchdog", "Creating config link: %s -> %s", t.Path, t.Target)
+				if err := safeLinkOrCopy(t.Target, absPath, rootDir); err != nil {
+					return fmt.Errorf("failed to link/copy config %s: %w", absPath, err)
 				}
 				continue
 			}
@@ -65,23 +65,50 @@ func HealSymlinks(rootDir string) error {
 			if linkTarget == t.Target {
 				continue
 			}
-			supervisor.LogInfo("watchdog", "Correcting config symlink target for %s (pointing to %s, should be %s)", t.Path, linkTarget, t.Target)
+			supervisor.LogInfo("watchdog", "Correcting config link target for %s (pointing to %s, should be %s)", t.Path, linkTarget, t.Target)
 			if err := os.Remove(absPath); err != nil {
 				return fmt.Errorf("failed to remove incorrect symlink %s: %w", absPath, err)
 			}
-			if err := os.Symlink(t.Target, absPath); err != nil {
-				return fmt.Errorf("failed to recreate symlink %s: %w", absPath, err)
+			if err := safeLinkOrCopy(t.Target, absPath, rootDir); err != nil {
+				return fmt.Errorf("failed to recreate link/copy %s: %w", absPath, err)
 			}
 		} else {
-			supervisor.LogInfo("watchdog", "Replacing regular config file at %s with symlink to %s", t.Path, t.Target)
+			// On Windows or systems where symlinks were replaced by regular file copies,
+			// verify if destination file already exists and is non-empty
+			if lInfo.Size() > 0 {
+				continue
+			}
+			supervisor.LogInfo("watchdog", "Updating config file at %s", t.Path)
 			if err := os.RemoveAll(absPath); err != nil {
 				return fmt.Errorf("failed to remove regular file %s: %w", absPath, err)
 			}
-			if err := os.Symlink(t.Target, absPath); err != nil {
-				return fmt.Errorf("failed to create symlink %s: %w", absPath, err)
+			if err := safeLinkOrCopy(t.Target, absPath, rootDir); err != nil {
+				return fmt.Errorf("failed to create link/copy %s: %w", absPath, err)
 			}
 		}
 	}
 	supervisor.LogInfo("watchdog", "Ecosystem configuration symlinks healed successfully.")
 	return nil
+}
+
+func safeLinkOrCopy(targetRel, destAbs, rootDir string) error {
+	// Try creating symlink first
+	if err := os.Symlink(targetRel, destAbs); err == nil {
+		return nil
+	}
+	// Fallback for Windows or systems without symlink privilege: direct file copy
+	sourceAbs := filepath.Join(filepath.Dir(destAbs), targetRel)
+	data, err := os.ReadFile(sourceAbs)
+	if err != nil {
+		sourceAbs = filepath.Join(rootDir, "docker-deployment", "shared-config", "native.yaml")
+		data, err = os.ReadFile(sourceAbs)
+		if err != nil {
+			sourceAbs = filepath.Join(rootDir, "shared-config", "native.yaml")
+			data, err = os.ReadFile(sourceAbs)
+			if err != nil {
+				return fmt.Errorf("failed to read source config for copy fallback: %w", err)
+			}
+		}
+	}
+	return os.WriteFile(destAbs, data, 0644)
 }

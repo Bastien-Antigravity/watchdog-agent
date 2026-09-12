@@ -2,7 +2,10 @@ package supervisor
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
@@ -11,6 +14,11 @@ import (
 
 // RegisterServices initializes the topology registry slice of managed services
 func RegisterServices(rootDir, vectorDBIP, vectorDBPort string, cfg *config.AppConfig) {
+	exeExt := ""
+	if runtime.GOOS == "windows" {
+		exeExt = ".exe"
+	}
+
 	// Resolve local NATS server configuration parameters dynamically
 	natsConfigPath := cfg.Config.Get("nats_server", "config_path")
 	if natsConfigPath == "" {
@@ -20,13 +28,28 @@ func RegisterServices(rootDir, vectorDBIP, vectorDBPort string, cfg *config.AppC
 		natsConfigPath = filepath.Join(rootDir, natsConfigPath)
 	}
 
+	// Resolve NATS server executable:
+	// 1. Look in system PATH (e.g. brew, apt, winget)
+	// 2. Fall back to bundled watchdog-agent/nats/nats-server strictly on macOS
+	natsRunCmd := ""
+	if p, err := exec.LookPath("nats-server" + exeExt); err == nil {
+		natsRunCmd = p
+	} else if p, err := exec.LookPath("nats-server"); err == nil {
+		natsRunCmd = p
+	} else if runtime.GOOS == "darwin" {
+		bundled := filepath.Join(rootDir, "watchdog-agent", "nats", "nats-server")
+		if _, err := os.Stat(bundled); err == nil {
+			natsRunCmd = bundled
+		}
+	}
+
 	Services = []*Service{
 		{
 			Name:     "nats-server",
 			CapName:  "nats_server",
 			Path:     filepath.Join(rootDir, "watchdog-agent", "nats"),
 			BuildCmd: "",
-			RunCmd:   filepath.Join(rootDir, "watchdog-agent", "nats", "nats-server"),
+			RunCmd:   natsRunCmd,
 			RunArgs:  []string{"-c", natsConfigPath},
 			Deps:     []string{},
 			LogColor: ColorWatchdog,
@@ -37,7 +60,7 @@ func RegisterServices(rootDir, vectorDBIP, vectorDBPort string, cfg *config.AppC
 			Path:      filepath.Join(rootDir, "log-server"),
 			BuildCmd:  "cargo",
 			BuildArgs: []string{"build"},
-			RunCmd:    filepath.Join(rootDir, "log-server", "target", "debug", "log-server"),
+			RunCmd:    filepath.Join(rootDir, "log-server", "target", "debug", "log-server"+exeExt),
 			RunArgs:   []string{"--name", "log_server", "--port", "9020"},
 			Deps:      []string{},
 			LogColor:  ColorLogServer,
@@ -47,8 +70,8 @@ func RegisterServices(rootDir, vectorDBIP, vectorDBPort string, cfg *config.AppC
 			CapName:   "config_server",
 			Path:      filepath.Join(rootDir, "config-server"),
 			BuildCmd:  "go",
-			BuildArgs: []string{"build", "-o", "bin/config-server", "./cmd/config-server"},
-			RunCmd:    filepath.Join(rootDir, "config-server", "bin", "config-server"),
+			BuildArgs: []string{"build", "-o", "bin/config-server" + exeExt, "./cmd/config-server"},
+			RunCmd:    filepath.Join(rootDir, "config-server", "bin", "config-server"+exeExt),
 			RunArgs:   []string{},
 			Deps:      []string{"log-server"},
 			LogColor:  ColorConfigServer,
@@ -58,8 +81,8 @@ func RegisterServices(rootDir, vectorDBIP, vectorDBPort string, cfg *config.AppC
 			CapName:   "notif_server",
 			Path:      filepath.Join(rootDir, "notif-server"),
 			BuildCmd:  "go",
-			BuildArgs: []string{"build", "-o", "bin/notif-server", "./cmd/notif-server"},
-			RunCmd:    filepath.Join(rootDir, "notif-server", "bin", "notif-server"),
+			BuildArgs: []string{"build", "-o", "bin/notif-server" + exeExt, "./cmd/notif-server"},
+			RunCmd:    filepath.Join(rootDir, "notif-server", "bin", "notif-server"+exeExt),
 			RunArgs:   []string{},
 			Deps:      []string{"log-server", "config-server"},
 			LogColor:  ColorNotifServer,
@@ -69,8 +92,8 @@ func RegisterServices(rootDir, vectorDBIP, vectorDBPort string, cfg *config.AppC
 			CapName:   "tele_remote",
 			Path:      filepath.Join(rootDir, "tele-remote"),
 			BuildCmd:  "go",
-			BuildArgs: []string{"build", "-o", "bin/tele-remote", "./cmd/tele-remote"},
-			RunCmd:    filepath.Join(rootDir, "tele-remote", "bin", "tele-remote"),
+			BuildArgs: []string{"build", "-o", "bin/tele-remote" + exeExt, "./cmd/tele-remote"},
+			RunCmd:    filepath.Join(rootDir, "tele-remote", "bin", "tele-remote"+exeExt),
 			RunArgs:   []string{},
 			Deps:      []string{"log-server", "config-server", "notif-server"},
 			LogColor:  ColorTeleRemote,
@@ -80,8 +103,8 @@ func RegisterServices(rootDir, vectorDBIP, vectorDBPort string, cfg *config.AppC
 			CapName:   "web_interface",
 			Path:      filepath.Join(rootDir, "web-interface"),
 			BuildCmd:  "go",
-			BuildArgs: []string{"build", "-o", "bin/web-interface", "./cmd/web-interface"},
-			RunCmd:    filepath.Join(rootDir, "web-interface", "bin", "web-interface"),
+			BuildArgs: []string{"build", "-o", "bin/web-interface" + exeExt, "./cmd/web-interface"},
+			RunCmd:    filepath.Join(rootDir, "web-interface", "bin", "web-interface"+exeExt),
 			RunArgs:   []string{},
 			Deps:      []string{"log-server", "config-server"},
 			LogColor:  ColorWebInterface,

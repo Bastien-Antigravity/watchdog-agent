@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"runtime"
 	"sync"
 	"time"
 
@@ -32,12 +33,22 @@ func LogInfo(svc, format string, args ...interface{}) {
 func LogError(svc, format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
 	if Logger != nil {
-		Logger.Error("[%s:ERROR] %s", svc, msg)
+		Logger.Error("[%s] %s", svc, msg)
 	}
-	fmt.Fprintf(os.Stderr, "%s[watchdog:%s:ERROR]%s %s\n", ColorWatchdog, svc, ColorReset, msg)
+	fmt.Fprintf(os.Stderr, "%s[watchdog:%s]%s %s\n", ColorRed, svc, ColorReset, msg)
 }
 
-// RegisterCmd adds a command to the active list for signal cleanup
+// FindServiceByName retrieves a registered service pointer by name
+func FindServiceByName(name string) *Service {
+	for _, s := range Services {
+		if s.Name == name {
+			return s
+		}
+	}
+	return nil
+}
+
+// RegisterCmd adds a command to the active list
 func RegisterCmd(cmd *exec.Cmd) {
 	activeCmdsMu.Lock()
 	defer activeCmdsMu.Unlock()
@@ -56,6 +67,25 @@ func UnregisterCmd(cmd *exec.Cmd) {
 	}
 }
 
+// BuildService executes the compilation step for a service
+func BuildService(svc *Service) error {
+	if svc.BuildCmd == "" {
+		return nil
+	}
+
+	LogInfo(svc.Name, "Compiling binary with %s %v...", svc.BuildCmd, svc.BuildArgs)
+	cmd := exec.Command(svc.BuildCmd, svc.BuildArgs...)
+	cmd.Dir = svc.Path
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("build failed for %s: %w", svc.Name, err)
+	}
+	LogInfo(svc.Name, "Build successful.")
+	return nil
+}
+
 // KillAll kills all supervised command processes clean
 func KillAll() {
 	activeCmdsMu.Lock()
@@ -68,16 +98,6 @@ func KillAll() {
 			utils.KillProcessGroup(cmd)
 		}
 	}
-}
-
-// FindServiceByName searches the topology registry for a service by name
-func FindServiceByName(name string) *Service {
-	for _, s := range Services {
-		if s.Name == name {
-			return s
-		}
-	}
-	return nil
 }
 
 // PipeOutput routes logs from subprocess stdout/stderr with service prefixes
@@ -132,6 +152,61 @@ func MonitorAndSupervise(svc *Service, baseEnv []string, localIPs map[string]boo
 				time.Sleep(1 * time.Second)
 			}
 			LogInfo(svc.Name, "Dependency '%s' is ready.", depName)
+		}
+
+		// Special handling for NATS event bus / infrastructure service:
+		if svc.Name == "nats-server" {
+			checkHost := svc.IP
+			if checkHost == "" {
+				checkHost = "127.0.0.1"
+			}
+			addr := net.JoinHostPort(checkHost, svc.Port)
+
+			// If NATS is already active on the target port (e.g. running via Docker container, brew services, or external daemon)
+			if IsPortListening(addr, 500*time.Millisecond) {
+				LogInfo(svc.Name, "NATS server is already online on %s (managed externally or via Docker). Attached.", addr)
+				svc.Mu.Lock()
+				svc.Running = true
+				svc.Cmd = nil
+				svc.Mu.Unlock()
+
+				// Monitor port liveness in loop
+				for {
+					time.Sleep(3 * time.Second)
+					if !IsPortListening(addr, 1*time.Second) {
+						LogError(svc.Name, "NATS server on %s is no longer reachable! Re-entering supervision...", addr)
+						svc.Mu.Lock()
+						svc.Running = false
+						svc.Mu.Unlock()
+						break
+					}
+				}
+				continue
+			}
+
+			// If NATS is not listening and we don't have a runnable native binary
+			if svc.RunCmd == "" {
+				LogError(svc.Name, "NATS server is not running on %s, and no native 'nats-server' binary was found in PATH on %s/%s.", addr, runtime.GOOS, runtime.GOARCH)
+
+				// Check if Docker is available to start the container
+				if dockerPath, err := exec.LookPath("docker"); err == nil {
+					LogInfo(svc.Name, "Attempting auto-recovery: starting NATS container via Docker...")
+					startCmd := exec.Command(dockerPath, "start", "nats-server")
+					if err := startCmd.Run(); err != nil {
+						runCmd := exec.Command(dockerPath, "run", "-d", "--name", "nats-server", "-p", "4222:4222", "-p", "8222:8222", "nats:2.12.6-alpine3.22", "-m", "8222", "-js")
+						_ = runCmd.Run()
+					}
+					time.Sleep(2 * time.Second)
+					if IsPortListening(addr, 1*time.Second) {
+						LogInfo(svc.Name, "Successfully auto-started NATS container on %s via Docker.", addr)
+						continue
+					}
+				}
+
+				LogError(svc.Name, "Please start NATS via Docker ('docker run -d --name nats-server -p 4222:4222 nats:alpine') or install nats-server. Retrying in 5s...")
+				time.Sleep(5 * time.Second)
+				continue
+			}
 		}
 
 		// 2. Clear port just in case it is occupied by an orphaned instance
