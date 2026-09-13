@@ -17,9 +17,9 @@ type SymlinkTarget struct {
 func HealSymlinks(rootDir string) error {
 	supervisor.LogInfo("watchdog", "Healing/verifying ecosystem configuration symlinks...")
 
-	baseConfigPath := "docker-deployment/shared-config/native.yaml"
+	baseConfigPath := "docker-deployment/modes/local/config/native.yaml"
 	if _, err := os.Stat(filepath.Join(rootDir, baseConfigPath)); os.IsNotExist(err) {
-		baseConfigPath = "shared-config/native.yaml"
+		baseConfigPath = "modes/local/config/native.yaml"
 	}
 
 	targets := []SymlinkTarget{
@@ -100,10 +100,10 @@ func safeLinkOrCopy(targetRel, destAbs, rootDir string) error {
 	sourceAbs := filepath.Join(filepath.Dir(destAbs), targetRel)
 	data, err := os.ReadFile(sourceAbs)
 	if err != nil {
-		sourceAbs = filepath.Join(rootDir, "docker-deployment", "shared-config", "native.yaml")
+		sourceAbs = filepath.Join(rootDir, "docker-deployment", "modes", "local", "config", "native.yaml")
 		data, err = os.ReadFile(sourceAbs)
 		if err != nil {
-			sourceAbs = filepath.Join(rootDir, "shared-config", "native.yaml")
+			sourceAbs = filepath.Join(rootDir, "modes", "local", "config", "native.yaml")
 			data, err = os.ReadFile(sourceAbs)
 			if err != nil {
 				return fmt.Errorf("failed to read source config for copy fallback: %w", err)

@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// FindWorkspaceRoot locates the workspace root containing shared-config
+// FindWorkspaceRoot locates the workspace root containing docker-deployment
 func FindWorkspaceRoot() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -22,11 +22,14 @@ func FindWorkspaceRoot() (string, error) {
 	}
 
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "shared-config")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "docker-deployment", "modes", "local", "config", "native.yaml")); err == nil {
 			return dir, nil
 		}
-		if _, err := os.Stat(filepath.Join(dir, "docker-deployment", "shared-config")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, "docker-deployment", "fleet.sh")); err == nil {
 			return dir, nil
+		}
+		if _, err := os.Stat(filepath.Join(dir, "modes", "local", "config", "native.yaml")); err == nil && filepath.Base(dir) == "docker-deployment" {
+			return filepath.Dir(dir), nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -34,7 +37,7 @@ func FindWorkspaceRoot() (string, error) {
 		}
 		dir = parent
 	}
-	return "", fmt.Errorf("shared-config directory not found in parent hierarchy")
+	return "", fmt.Errorf("workspace root not found in parent hierarchy")
 }
 
 // GetLocalIPs returns a set of local IP addresses for this machine
