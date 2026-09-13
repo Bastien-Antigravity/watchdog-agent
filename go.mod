@@ -10,13 +10,12 @@ require (
 
 require (
 	capnproto.org/go/capnp/v3 v3.1.0-alpha.2 // indirect
-	github.com/Bastien-Antigravity/distributed-config v1.9.922 // indirect
+	github.com/Bastien-Antigravity/distributed-config v0.0.1 // indirect
 	github.com/Bastien-Antigravity/flexible-logger v0.0.1 // indirect
-	github.com/Bastien-Antigravity/safe-socket v1.8.2 // indirect
+	github.com/Bastien-Antigravity/safe-socket v0.0.1 // indirect
 	github.com/colega/zeropool v0.0.0-20230505084239-6fb4a4f75381 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/nats-io/nkeys v0.4.15 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
@@ -32,6 +31,8 @@ require (
 )
 
 replace (
+	github.com/Bastien-Antigravity/distributed-config => ../distributed-config
+	github.com/Bastien-Antigravity/flexible-logger => ../flexible-logger
 	github.com/Bastien-Antigravity/microservice-toolbox => ../microservice-toolbox
 	github.com/Bastien-Antigravity/safe-socket => ../safe-socket
 	github.com/Bastien-Antigravity/universal-logger => ../universal-logger
