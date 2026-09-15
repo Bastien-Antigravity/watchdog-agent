@@ -29,17 +29,27 @@ func RegisterServices(rootDir, vectorDBIP, vectorDBPort string, cfg *config.AppC
 	}
 
 	// Resolve NATS server executable:
-	// 1. Look in system PATH (e.g. brew, apt, winget)
-	// 2. Fall back to bundled watchdog-agent/nats/nats-server strictly on macOS
+	// 1. Look in system PATH (e.g. brew, apt, winget, choco)
+	// 2. Look in workspace watchdog-agent/nats/nats-server
+	// 3. Look in standard user binary path ~/.local/bin/nats-server
 	natsRunCmd := ""
-	if p, err := exec.LookPath("nats-server" + exeExt); err == nil {
-		natsRunCmd = p
-	} else if p, err := exec.LookPath("nats-server"); err == nil {
-		natsRunCmd = p
-	} else if runtime.GOOS == "darwin" {
-		bundled := filepath.Join(rootDir, "watchdog-agent", "nats", "nats-server")
-		if _, err := os.Stat(bundled); err == nil {
-			natsRunCmd = bundled
+	homeDir, _ := os.UserHomeDir()
+	candidates := []string{
+		"nats-server" + exeExt,
+		"nats-server",
+		filepath.Join(rootDir, "watchdog-agent", "nats", "nats-server" + exeExt),
+		filepath.Join(rootDir, "watchdog-agent", "nats", "nats-server"),
+		filepath.Join(homeDir, ".local", "bin", "nats-server" + exeExt),
+		filepath.Join(homeDir, ".local", "bin", "nats-server"),
+	}
+	for _, c := range candidates {
+		if p, err := exec.LookPath(c); err == nil {
+			natsRunCmd = p
+			break
+		}
+		if fi, err := os.Stat(c); err == nil && !fi.IsDir() {
+			natsRunCmd = c
+			break
 		}
 	}
 
