@@ -13,7 +13,7 @@ import (
 )
 
 // RegisterServices initializes the topology registry slice of managed services
-func RegisterServices(rootDir, vectorDBIP, vectorDBPort string, cfg *config.AppConfig) {
+func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 	exeExt := ""
 	if runtime.GOOS == "windows" {
 		exeExt = ".exe"
@@ -31,16 +31,12 @@ func RegisterServices(rootDir, vectorDBIP, vectorDBPort string, cfg *config.AppC
 	// Resolve NATS server executable:
 	// 1. Look in system PATH (e.g. brew, apt, winget, choco)
 	// 2. Look in workspace watchdog-agent/nats/nats-server
-	// 3. Look in standard user binary path ~/.local/bin/nats-server
 	natsRunCmd := ""
-	homeDir, _ := os.UserHomeDir()
 	candidates := []string{
 		"nats-server" + exeExt,
 		"nats-server",
-		filepath.Join(rootDir, "watchdog-agent", "nats", "nats-server" + exeExt),
+		filepath.Join(rootDir, "watchdog-agent", "nats", "nats-server"+exeExt),
 		filepath.Join(rootDir, "watchdog-agent", "nats", "nats-server"),
-		filepath.Join(homeDir, ".local", "bin", "nats-server" + exeExt),
-		filepath.Join(homeDir, ".local", "bin", "nats-server"),
 	}
 	for _, c := range candidates {
 		if p, err := exec.LookPath(c); err == nil {
@@ -71,7 +67,7 @@ func RegisterServices(rootDir, vectorDBIP, vectorDBPort string, cfg *config.AppC
 			BuildCmd:  "cargo",
 			BuildArgs: []string{"build"},
 			RunCmd:    filepath.Join(rootDir, "log-server", "target", "debug", "log-server"+exeExt),
-			RunArgs:   []string{"--name", "log_server", "--port", "9020"},
+			RunArgs:   []string{"--name", "log_server"},
 			Deps:      []string{},
 			LogColor:  ColorLogServer,
 		},
@@ -164,7 +160,7 @@ func RegisterServices(rootDir, vectorDBIP, vectorDBPort string, cfg *config.AppC
 		case "tele-remote":
 			defaultPort = "1863"
 		case "web-interface":
-			defaultPort = "8000"
+			defaultPort = "5000"
 		case "rag-engine":
 			defaultPort = "8090"
 		case "rag-dashboard":
@@ -175,7 +171,7 @@ func RegisterServices(rootDir, vectorDBIP, vectorDBPort string, cfg *config.AppC
 			defaultPort = "8085"
 		}
 
-		svc.IP, svc.Port = resolveServiceAddr(cfg, svc.CapName, vectorDBIP, defaultPort)
+		svc.IP, svc.Port = resolveServiceAddr(cfg, svc.CapName, defaultHost, defaultPort)
 		if svc.Name == "rag-dashboard" {
 			if capMap, ok := cfg.Capabilities["rag_engine"].(map[string]interface{}); ok {
 				if dash, ok := capMap["dashboard"].(map[string]interface{}); ok {

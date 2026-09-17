@@ -65,23 +65,13 @@ func main() {
 	}
 	defer lockFile.Close()
 
-	// Resolve Vector DB Port from capabilities
-	vectorDBPort := "8000"
-	if capMap, ok := cfg.Capabilities["rag_engine"].(map[string]interface{}); ok {
-		if vdb, ok := capMap["vector_db"].(map[string]interface{}); ok {
-			if port, exists := vdb["port"]; exists {
-				vectorDBPort = fmt.Sprintf("%v", port)
-			}
-		}
-	}
-
 	defaultHost := os.Getenv("HOST_IP")
 	if defaultHost == "" {
 		defaultHost = "127.0.0.1"
 	}
 
 	// Initialize the topologies registry of services
-	supervisor.RegisterServices(rootDir, defaultHost, vectorDBPort, cfg)
+	supervisor.RegisterServices(rootDir, defaultHost, cfg)
 
 	// Validate registry topologies
 	if err := supervisor.ValidateRegistry(); err != nil {
