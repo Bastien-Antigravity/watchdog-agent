@@ -3,7 +3,7 @@
 ## Service Mission & Architecture Role
 `watchdog-agent` is the local node supervisor, process orchestrator, health monitor, and configuration symlink healer for the Bastien-Antigravity fleet. It ensures that required daemons (such as `log-server`, `config-server`, `nats-server`, `web-interface`, `notif-server`, and trading/analysis services) remain operational, restarts failed processes with exponential backoff, exports Prometheus metrics, and automatically heals broken or missing `standalone.yaml` symlinks across the ecosystem.
 
-- **Exposed Port**: `8002` (REST API & `/metrics`)
+- **Exposed Port**: `9095` (REST Management API & OpenMFE)
 - **Key Modules**:
   - `src/supervisor`: Process launcher, health checks, PID tracking, graceful shutdown
   - `src/config/heal.go`: Auto-repair engine for all 35 base ecosystem `standalone.yaml` symlinks
