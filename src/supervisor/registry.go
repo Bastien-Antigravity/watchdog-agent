@@ -61,6 +61,16 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 			LogColor: ColorWatchdog,
 		},
 		{
+			Name:     "timescale-db",
+			CapName:  "timescale_db",
+			Path:     rootDir,
+			BuildCmd: "",
+			RunCmd:   "",
+			RunArgs:  []string{},
+			Deps:     []string{},
+			LogColor: ColorWatchdog,
+		},
+		{
 			Name:      "log-server",
 			CapName:   "log_server",
 			Path:      filepath.Join(rootDir, "log-server"),
@@ -83,17 +93,6 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 			LogColor:  ColorConfigServer,
 		},
 		{
-			Name:      "notif-server",
-			CapName:   "notif_server",
-			Path:      filepath.Join(rootDir, "notif-server"),
-			BuildCmd:  "go",
-			BuildArgs: []string{"build", "-o", "bin/notif-server" + exeExt, "./cmd/notif-server"},
-			RunCmd:    filepath.Join(rootDir, "notif-server", "bin", "notif-server"+exeExt),
-			RunArgs:   []string{},
-			Deps:      []string{"log-server", "config-server"},
-			LogColor:  ColorNotifServer,
-		},
-		{
 			Name:      "tele-remote",
 			CapName:   "tele_remote",
 			Path:      filepath.Join(rootDir, "tele-remote"),
@@ -101,7 +100,7 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 			BuildArgs: []string{"build", "-o", "bin/tele-remote" + exeExt, "./cmd/tele-remote"},
 			RunCmd:    filepath.Join(rootDir, "tele-remote", "bin", "tele-remote"+exeExt),
 			RunArgs:   []string{},
-			Deps:      []string{"log-server", "config-server", "notif-server"},
+			Deps:      []string{"log-server", "config-server"},
 			LogColor:  ColorTeleRemote,
 		},
 		{
@@ -112,8 +111,19 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 			BuildArgs: []string{"build", "-o", "bin/web-interface" + exeExt, "./cmd/web-interface"},
 			RunCmd:    filepath.Join(rootDir, "web-interface", "bin", "web-interface"+exeExt),
 			RunArgs:   []string{},
-			Deps:      []string{"log-server", "config-server"},
+			Deps:      []string{}, // Starts independently so dashboard is immediately visible even if microservices haven't started
 			LogColor:  ColorWebInterface,
+		},
+		{
+			Name:      "notif-server",
+			CapName:   "notif_server",
+			Path:      filepath.Join(rootDir, "notif-server"),
+			BuildCmd:  "go",
+			BuildArgs: []string{"build", "-o", "bin/notif-server" + exeExt, "./cmd/notif-server"},
+			RunCmd:    filepath.Join(rootDir, "notif-server", "bin", "notif-server"+exeExt),
+			RunArgs:   []string{},
+			Deps:      []string{"log-server", "config-server", "tele-remote"},
+			LogColor:  ColorNotifServer,
 		},
 		{
 			Name:     "rag-engine",
@@ -122,7 +132,7 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 			BuildCmd: "",
 			RunCmd:   utils.FindPythonCmd(filepath.Join(rootDir, "obsidian-brain", "09-RAG-Engine")),
 			RunArgs:  []string{"main.py", "server"},
-			Deps:     []string{"log-server", "config-server"},
+			Deps:     []string{"log-server", "config-server", "timescale-db"},
 			LogColor: ColorRagEngine,
 		},
 		{
@@ -151,6 +161,8 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 	for _, svc := range Services {
 		var defaultPort string
 		switch svc.Name {
+		case "timescale-db":
+			defaultPort = "5432"
 		case "log-server":
 			defaultPort = "9020"
 		case "config-server":

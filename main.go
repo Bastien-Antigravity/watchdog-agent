@@ -161,8 +161,6 @@ func main() {
 	postgresAddr, err := cfg.GetListenAddr("timescale_db")
 	if err != nil || postgresAddr == "" {
 		appLogger.Error("Postgres database address capability not configured: %v", err)
-	} else {
-		go supervisor.LaunchPostgresAttempt(postgresAddr)
 	}
 
 	// Resolve RAG MCP address using capability configuration

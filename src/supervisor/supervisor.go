@@ -209,6 +209,38 @@ func MonitorAndSupervise(svc *Service, baseEnv []string, localIPs map[string]boo
 			}
 		}
 
+		// Special handling for TimescaleDB/Postgres infrastructure service:
+		if svc.Name == "timescale-db" {
+			checkHost := svc.IP
+			if checkHost == "" {
+				checkHost = "127.0.0.1"
+			}
+			addr := net.JoinHostPort(checkHost, svc.Port)
+
+			if LaunchPostgresAttempt(addr) {
+				LogInfo(svc.Name, "TimescaleDB/Postgres is online on %s. Attached.", addr)
+				svc.Mu.Lock()
+				svc.Running = true
+				svc.Cmd = nil
+				svc.Mu.Unlock()
+
+				// Monitor port liveness in loop
+				for {
+					time.Sleep(3 * time.Second)
+					if !IsPortListening(addr, 1*time.Second) {
+						LogError(svc.Name, "TimescaleDB/Postgres on %s is no longer reachable! Re-entering supervision...", addr)
+						svc.Mu.Lock()
+						svc.Running = false
+						svc.Mu.Unlock()
+						break
+					}
+				}
+				continue
+			}
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
 		// 2. Clear port just in case it is occupied by an orphaned instance
 		if svc.Port != "" {
 			checkHost := svc.IP
