@@ -1,5 +1,21 @@
 package server
 
+// =============================================================================
+// ESSENTIAL PROCESS:
+// Concrete implementation of core.WatchdogController interface. Aggregates live
+// process tree statuses, evaluates database/RAG connection liveness, and triggers
+// graceful or forced child process group restarts.
+//
+// DATA FLOW:
+// 1. Queries supervisor.Services and tests downstream database/RAG ports.
+// 2. Returns unified WatchdogStatusInfo telemetry struct.
+// 3. Receives service restart commands and signals supervisor to terminate/relaunch.
+//
+// KEY PARAMETERS:
+// - postgresAddr: Target address used to verify PostgreSQL connectivity.
+// - ragMcpAddr: Target address used to verify RAG Engine MCP connectivity.
+// =============================================================================
+
 import (
 	"context"
 	"fmt"
@@ -9,6 +25,8 @@ import (
 	"github.com/Bastien-Antigravity/watchdog-agent/src/supervisor"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/utils"
 )
+
+// -----------------------------------------------------------------------------
 
 // Ensure Controller implements core.WatchdogController
 var _ core.WatchdogController = (*Controller)(nil)

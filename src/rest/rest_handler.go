@@ -1,5 +1,22 @@
 package rest
 
+// =============================================================================
+// ESSENTIAL PROCESS:
+// HTTP REST management API and OpenMFE micro-frontend host for watchdog-agent.
+// Serves live node telemetry, system health status, process restart endpoints,
+// and embedded OpenMFE frontend script assets.
+//
+// DATA FLOW:
+// 1. Receives incoming HTTP requests on port 9095.
+// 2. Dispatches GET /api/v1/status, /api/v1/health, and /api/v1/mfe.js.
+// 3. Dispatches POST /api/v1/services/{name}/restart commands to controller.
+// 4. Returns JSON responses with CORS headers and status codes.
+//
+// KEY PARAMETERS:
+// - control: core.WatchdogController interface for state inspection and restarts.
+// - logger: Unified ILogger interface for request and audit logging.
+// =============================================================================
+
 import (
 	_ "embed"
 	"encoding/json"
@@ -14,6 +31,8 @@ import (
 
 //go:embed mfe.js
 var mfeJS string
+
+// -----------------------------------------------------------------------------
 
 // RESTHandler handles HTTP management requests for watchdog
 type RESTHandler struct {

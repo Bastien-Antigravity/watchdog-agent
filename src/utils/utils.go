@@ -1,5 +1,20 @@
 package utils
 
+// =============================================================================
+// ESSENTIAL PROCESS:
+// System utilities and network inspection helpers for watchdog-agent.
+// Provides workspace root resolution, local IP detection, port listener tests,
+// cross-platform process tree cleanup, and python virtualenv discovery.
+//
+// DATA FLOW:
+// 1. Inspects filesystem upward traversal to resolve canonical workspace root.
+// 2. Probes local network interfaces to map host IP addresses.
+// 3. Inspects and frees TCP ports from stale or orphaned fleet processes.
+//
+// KEY PARAMETERS:
+// - port: Target TCP port string to inspect, probe, or terminate occupants.
+// =============================================================================
+
 import (
 	"fmt"
 	"net"
@@ -9,6 +24,8 @@ import (
 	"runtime"
 	"strings"
 )
+
+// -----------------------------------------------------------------------------
 
 // FindWorkspaceRoot locates the workspace root containing docker-deployment
 func FindWorkspaceRoot() (string, error) {

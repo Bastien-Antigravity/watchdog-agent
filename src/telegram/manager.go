@@ -1,5 +1,22 @@
 package telegram
 
+// =============================================================================
+// ESSENTIAL PROCESS:
+// Telegram bot UI integration and menu management for watchdog-agent.
+// Dynamically constructs and binds interactive buttons, node telemetry status,
+// and process restart callbacks into the tele-remote bot interface.
+//
+// DATA FLOW:
+// 1. Reads tele-remote capability gRPC listen address from AppConfig.
+// 2. Connects TeleClient facade and constructs hierarchical menu tree.
+// 3. Registers button callbacks to restart individual processes or the full stack.
+// 4. Pushes menu schema updates asynchronously to tele-remote.
+//
+// KEY PARAMETERS:
+// - appConfig: Distributed configuration facade for tele_remote address resolution.
+// - controller: core.WatchdogController interface for querying status and triggers.
+// =============================================================================
+
 import (
 	"context"
 	"fmt"
@@ -12,6 +29,8 @@ import (
 	toolbox_teleclient "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/teleremote"
 	unilog_ifaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
+
+// -----------------------------------------------------------------------------
 
 // MenuManager orchestrates the rebuild operations of the Telegram interactive menus.
 type MenuManager struct {

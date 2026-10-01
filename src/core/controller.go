@@ -1,6 +1,23 @@
 package core
 
+// =============================================================================
+// ESSENTIAL PROCESS:
+// Core interface and telemetry data contract definitions for watchdog-agent.
+// Defines service statuses, overall node health metrics, and control signatures.
+//
+// DATA FLOW:
+// 1. Gathers process states from the supervisor subsystem.
+// 2. Serializes telemetry snapshots for HTTP REST, OpenMFE, and Telegram clients.
+// 3. Receives remote lifecycle management requests (restart single, restart all).
+//
+// KEY PARAMETERS:
+// - WatchdogStatusInfo: Comprehensive snapshot of ecosystem node health and telemetry.
+// - WatchdogController: Contract for supervisor queries and process restarts.
+// =============================================================================
+
 import "context"
+
+// -----------------------------------------------------------------------------
 
 // ServiceStatus represents the current status of a managed process
 type ServiceStatus struct {

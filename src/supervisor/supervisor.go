@@ -1,5 +1,22 @@
 package supervisor
 
+// =============================================================================
+// ESSENTIAL PROCESS:
+// Core supervisor engine managing lifecycle, port liveness, execution loops,
+// process group management, stdout/stderr multiplexing, and graceful teardown
+// for all supervised ecosystem child daemons.
+//
+// DATA FLOW:
+// 1. Accepts service topology specifications and dynamic environment definitions.
+// 2. Polls TCP listener ports to resolve dependency readiness.
+// 3. Spawns child processes in isolated process groups and streams logs with ANSI prefixes.
+// 4. Traps failures and executes auto-restart loops with exponential backoff.
+//
+// KEY PARAMETERS:
+// - Services: Global slice of registered service topology definitions.
+// - activeCmds: Mutex-guarded tracking list of active OS command handles.
+// =============================================================================
+
 import (
 	"bufio"
 	"fmt"
@@ -14,28 +31,26 @@ import (
 	"github.com/Bastien-Antigravity/watchdog-agent/src/utils"
 )
 
+// -----------------------------------------------------------------------------
+
 var (
 	activeCmds   []*exec.Cmd
 	activeCmdsMu sync.Mutex
 	Services     []*Service
 )
 
+// -----------------------------------------------------------------------------
+
 // LogInfo writes a formatted message with watchdog prefix to stdout/logger
 func LogInfo(svc, format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
-	if Logger != nil {
-		Logger.Info("[%s] %s", svc, msg)
-	}
-	fmt.Printf("%s[watchdog:%s]%s %s\n", ColorWatchdog, svc, ColorReset, msg)
+	Logger.Info("[%s] %s", svc, msg)
 }
 
 // LogError writes a formatted error message with watchdog prefix to stderr/logger
 func LogError(svc, format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
-	if Logger != nil {
-		Logger.Error("[%s] %s", svc, msg)
-	}
-	fmt.Fprintf(os.Stderr, "%s[watchdog:%s]%s %s\n", ColorRed, svc, ColorReset, msg)
+	Logger.Error("[%s] %s", svc, msg)
 }
 
 // FindServiceByName retrieves a registered service pointer by name

@@ -2,10 +2,25 @@
 
 package utils
 
+// =============================================================================
+// ESSENTIAL PROCESS:
+// Unix-specific process group management and signal dispatching for clean process
+// tree termination.
+//
+// DATA FLOW:
+// 1. Sets pgid on spawned child processes.
+// 2. Transmits SIGKILL to the negative process group ID to terminate sub-trees.
+//
+// KEY PARAMETERS:
+// - cmd: OS exec.Cmd handle representing target child process.
+// =============================================================================
+
 import (
 	"os/exec"
 	"syscall"
 )
+
+// -----------------------------------------------------------------------------
 
 // SetSysProcAttrGroup sets the process group attributes for Unix-like systems
 func SetSysProcAttrGroup(cmd *exec.Cmd) {

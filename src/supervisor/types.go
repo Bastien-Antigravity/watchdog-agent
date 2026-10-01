@@ -1,5 +1,20 @@
 package supervisor
 
+// =============================================================================
+// ESSENTIAL PROCESS:
+// Core domain types, shared supervisor state, and ANSI terminal color definitions
+// for watchdog-agent service orchestration.
+//
+// DATA FLOW:
+// 1. Stores singleton Logger instance set during service bootstrap.
+// 2. Models Service specifications including build/run commands, dependencies,
+//    addresses, and runtime execution handles.
+//
+// KEY PARAMETERS:
+// - Logger: Shared ILogger instance for logging across supervisor subsystems.
+// - Service: Thread-safe runtime specification for supervised processes.
+// =============================================================================
+
 import (
 	"os/exec"
 	"sync"
@@ -7,7 +22,11 @@ import (
 	unilog_ifaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 
+// -----------------------------------------------------------------------------
+
 var Logger unilog_ifaces.Logger
+
+// -----------------------------------------------------------------------------
 
 // ANSI Color codes for prefixed service logging
 const (

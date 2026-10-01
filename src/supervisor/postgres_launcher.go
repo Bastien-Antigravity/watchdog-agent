@@ -1,10 +1,28 @@
 package supervisor
 
+// =============================================================================
+// ESSENTIAL PROCESS:
+// Automated database lifecycle launcher for TimescaleDB/PostgreSQL. Detects
+// liveness on configured target address and attempts layered startup via Docker
+// or host OS service managers (Homebrew on macOS, systemd on Linux, Services on Windows).
+//
+// DATA FLOW:
+// 1. Probes TCP target address for database readiness.
+// 2. If unreachable, attempts `docker start timescale-db`.
+// 3. If Docker is unavailable or fails, invokes native OS daemon managers.
+// 4. Verifies database listener port readiness before yielding back to supervisor.
+//
+// KEY PARAMETERS:
+// - addr: Target host and port string for PostgreSQL/TimescaleDB instance.
+// =============================================================================
+
 import (
 	"os/exec"
 	"runtime"
 	"time"
 )
+
+// -----------------------------------------------------------------------------
 
 // LaunchPostgresAttempt tries to start the PostgreSQL/TimescaleDB database
 // if it is not already running. It returns true if successful or if it was already running.

@@ -1,5 +1,21 @@
 package config
 
+// =============================================================================
+// ESSENTIAL PROCESS:
+// Automated configuration symlink self-healing subsystem. Audits, verifies,
+// and repairs all base ecosystem standalone.yaml symlinks across 35 targets
+// pointing to the authoritative native.yaml template.
+//
+// DATA FLOW:
+// 1. Accepts workspace root directory path.
+// 2. Evaluates canonical relative symlink targets across all microservices.
+// 3. Detects missing, orphaned, or redirected links and atomically recreates them.
+// 4. Returns error if healing encounters filesystem permission or path failures.
+//
+// KEY PARAMETERS:
+// - rootDir: Absolute filesystem path to the workspace root directory.
+// =============================================================================
+
 import (
 	"fmt"
 	"os"
@@ -8,10 +24,14 @@ import (
 	"github.com/Bastien-Antigravity/watchdog-agent/src/supervisor"
 )
 
+// -----------------------------------------------------------------------------
+
 type SymlinkTarget struct {
 	Path   string
 	Target string
 }
+
+// -----------------------------------------------------------------------------
 
 // HealSymlinks heals ecosystem configuration symlinks pointing to the central standalone.yaml
 func HealSymlinks(rootDir string) error {

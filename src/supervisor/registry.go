@@ -1,5 +1,22 @@
 package supervisor
 
+// =============================================================================
+// ESSENTIAL PROCESS:
+// Topologies registry and dependency graph validator for managed ecosystem services.
+// Configures executable paths, build steps, dynamic capability addresses, and
+// inter-service dependency ordering for native host supervisor runs.
+//
+// DATA FLOW:
+// 1. Accepts workspace root directory, host interface defaults, and AppConfig facade.
+// 2. Maps service definitions (NATS, TimescaleDB, LogServer, ConfigServer, etc.).
+// 3. Dynamically resolves service ports and IP bindings from distributed config.
+// 4. Validates dependency DAG for cycles or missing upstream dependencies.
+//
+// KEY PARAMETERS:
+// - rootDir: Absolute filesystem path to the workspace root directory.
+// - cfg: AppConfig instance providing dynamic capability addresses.
+// =============================================================================
+
 import (
 	"fmt"
 	"os"
@@ -11,6 +28,8 @@ import (
 	"github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/utils"
 )
+
+// -----------------------------------------------------------------------------
 
 // RegisterServices initializes the topology registry slice of managed services
 func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {

@@ -1,5 +1,21 @@
 package control
 
+// =============================================================================
+// ESSENTIAL PROCESS:
+// NATS control plane telemetry publisher for watchdog-agent. Publishes periodic
+// node heartbeats, health statuses, and dynamic supervised process states over
+// the ecosystem NATS messaging bus.
+//
+// DATA FLOW:
+// 1. Reads NATS capability credentials from AppConfig.
+// 2. Connects to NATS broker and launches background 5s heartbeat loop.
+// 3. Encodes node telemetry payload (hostname, uptime, supervised process list).
+// 4. Publishes heartbeats to `telemetry.watchdog.node` topic.
+//
+// KEY PARAMETERS:
+// - cfg: Ecosystem AppConfig providing dynamic NATS capability configuration.
+// =============================================================================
+
 import (
 	"encoding/json"
 	"fmt"
@@ -11,6 +27,8 @@ import (
 	"github.com/Bastien-Antigravity/watchdog-agent/src/supervisor"
 	"github.com/nats-io/nats.go"
 )
+
+// -----------------------------------------------------------------------------
 
 // StartNATSControlPlane connects to the NATS event bus and publishes node heartbeats
 func StartNATSControlPlane(cfg *config.AppConfig) {

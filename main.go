@@ -1,5 +1,23 @@
 package main
 
+// =============================================================================
+// ESSENTIAL PROCESS:
+// Bastien-Antigravity Watchdog Agent main entry point. Orchestrates native host
+// microservices, heals ecosystem configuration symlinks, manages node single-instance
+// locking, publishes NATS telemetry, and exposes the HTTP REST / OpenMFE management portal.
+//
+// DATA FLOW:
+// 1. Initialises AppConfig and UniLog via microservice-toolbox BootstrapService.
+// 2. Traverses and validates workspace root, healing 35 standalone.yaml symlinks.
+// 3. Builds and spawns supervised ecosystem processes according to dependency DAG.
+// 4. Starts NATS control plane telemetry, Tele-Remote bot menus, and REST server on port 9095.
+// 5. Waits for OS termination signals (SIGINT/SIGTERM) to gracefully tear down process trees.
+//
+// KEY PARAMETERS:
+// - profile: Configuration profile to load (default: standalone).
+// - build: Boolean flag to trigger compilation of out-of-date binaries on startup.
+// =============================================================================
+
 import (
 	"context"
 	"flag"
@@ -23,10 +41,20 @@ import (
 	"github.com/Bastien-Antigravity/watchdog-agent/src/utils"
 )
 
+// -----------------------------------------------------------------------------
+
 func main() {
 	profileFlag := flag.String("profile", "standalone", "Configuration profile to load (e.g. standalone, production)")
 	buildFlag := flag.Bool("build", true, "Automatically build binaries on startup")
 	flag.Parse()
+
+	// 1. Initialize Service via Unified Ecosystem Bootstrapper
+	cfg, appLogger := toolbox_bootstrap.BootstrapService("watchdog-agent")
+	if cfg == nil || appLogger == nil {
+		panic("Failed to bootstrap watchdog-agent: cfg and appLogger must not be nil")
+	}
+	defer appLogger.Close()
+	supervisor.Logger = appLogger
 
 	supervisor.LogInfo("watchdog", "Starting Bastien-Antigravity Watchdog Agent (Profile: %s)...", *profileFlag)
 
@@ -38,16 +66,11 @@ func main() {
 	}
 	supervisor.LogInfo("watchdog", "Resolved workspace root: %s", rootDir)
 
-	// Heal config symlinks BEFORE loading configuration
+	// Heal config symlinks
 	if err := watchdog_config.HealSymlinks(rootDir); err != nil {
 		supervisor.LogError("watchdog", "Failed to heal ecosystem config symlinks: %v", err)
 		os.Exit(1)
 	}
-
-	// Load ecosystem configuration & Initialize Logger
-	cfg, appLogger := toolbox_bootstrap.BootstrapService("watchdog-agent")
-	defer appLogger.Close()
-	supervisor.Logger = appLogger
 
 	// Detect local host IPs to determine local service assignments
 	localIPs, err := utils.GetLocalIPs()
