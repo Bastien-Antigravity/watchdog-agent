@@ -8,8 +8,6 @@ watchdog-agent
 # Logs & Data
 *.log
 logs/
-nats/logs/
-nats/data/
 data/
 
 # OS / IDE

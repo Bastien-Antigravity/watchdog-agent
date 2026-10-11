@@ -38,24 +38,15 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 		exeExt = ".exe"
 	}
 
-	// Resolve local NATS server configuration parameters dynamically
-	natsConfigPath := cfg.Config.Get("nats_server", "config_path")
-	if natsConfigPath == "" {
-		natsConfigPath = filepath.Join(rootDir, "watchdog-agent", "nats", "nats-server.conf")
-	} else if !filepath.IsAbs(natsConfigPath) {
-		// Resolve relative path to absolute
-		natsConfigPath = filepath.Join(rootDir, natsConfigPath)
-	}
-
 	// Resolve NATS server executable:
 	// 1. Look in system PATH (e.g. brew, apt, winget, choco)
-	// 2. Look in workspace watchdog-agent/nats/nats-server
+	// 2. Look in workspace docker-deployment/bin/nats-server
 	natsRunCmd := ""
 	candidates := []string{
 		"nats-server" + exeExt,
 		"nats-server",
-		filepath.Join(rootDir, "watchdog-agent", "nats", "nats-server"+exeExt),
-		filepath.Join(rootDir, "watchdog-agent", "nats", "nats-server"),
+		filepath.Join(rootDir, "docker-deployment", "bin", "nats-server"+exeExt),
+		filepath.Join(rootDir, "docker-deployment", "bin", "nats-server"),
 	}
 	for _, c := range candidates {
 		if p, err := exec.LookPath(c); err == nil {
@@ -71,11 +62,11 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 	Services = []*Service{
 		{
 			Name:     "nats-server",
-			CapName:  "nats_server",
-			Path:     filepath.Join(rootDir, "watchdog-agent", "nats"),
+			CapName:  "nats",
+			Path:     rootDir,
 			BuildCmd: "",
 			RunCmd:   natsRunCmd,
-			RunArgs:  []string{"-c", natsConfigPath},
+			RunArgs:  []string{"-js"},
 			Deps:     []string{},
 			LogColor: ColorWatchdog,
 		},
@@ -203,6 +194,31 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 		}
 
 		svc.IP, svc.Port = resolveServiceAddr(cfg, svc.CapName, defaultHost, defaultPort)
+		if svc.Name == "nats-server" {
+			httpPort := "8222"
+			serverName := "nats-server"
+			storeDir := filepath.Join(rootDir, "docker-deployment", "data", "jetstream")
+
+			if capMap, ok := cfg.Capabilities["nats"].(map[string]interface{}); ok {
+				if hp, exists := capMap["http_port"]; exists && hp != nil && fmt.Sprintf("%v", hp) != "" {
+					httpPort = fmt.Sprintf("%v", hp)
+				}
+				if sn, exists := capMap["server_name"]; exists && sn != nil && fmt.Sprintf("%v", sn) != "" {
+					serverName = fmt.Sprintf("%v", sn)
+				}
+				if js, ok := capMap["jetstream"].(map[string]interface{}); ok {
+					if sd, exists := js["store_dir"]; exists && sd != nil && fmt.Sprintf("%v", sd) != "" {
+						sdStr := fmt.Sprintf("%v", sd)
+						if filepath.IsAbs(sdStr) {
+							storeDir = sdStr
+						} else {
+							storeDir = filepath.Join(rootDir, sdStr)
+						}
+					}
+				}
+			}
+			svc.RunArgs = []string{"-js", "-sd", storeDir, "-p", svc.Port, "-a", svc.IP, "-m", httpPort, "-n", serverName}
+		}
 		if svc.Name == "rag-dashboard" {
 			if capMap, ok := cfg.Capabilities["rag_engine"].(map[string]interface{}); ok {
 				if dash, ok := capMap["dashboard"].(map[string]interface{}); ok {

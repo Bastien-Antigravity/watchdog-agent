@@ -70,7 +70,11 @@ func StartNATSControlPlane(cfg *config.AppConfig) {
 
 	supervisor.LogInfo("watchdog", "Successfully connected NATS Control Plane")
 
-	statusSubject := fmt.Sprintf("antigravity.watchdog.node.%s.status", hostname)
+	prefix := natsCfg.SubjectPrefix
+	if prefix == "" {
+		prefix = "bastien-antigravity"
+	}
+	statusSubject := fmt.Sprintf("%s.watchdog.node.%s.status", prefix, hostname)
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
