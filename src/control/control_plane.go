@@ -49,10 +49,22 @@ func StartNATSControlPlane(cfg *config.AppConfig) {
 	// Append hostname to ClientID to uniquely identify this node
 	natsCfg.ClientID = fmt.Sprintf("%s-%s", natsCfg.ClientID, hostname)
 
-	nc, err := messaging.Connect(&natsCfg, nil)
-	if err != nil {
-		supervisor.LogError("watchdog", "Failed to connect to NATS control plane: %v (running offline)", err)
-		return
+	var nc *nats.Conn
+	backoff := 2 * time.Second
+	maxBackoff := 15 * time.Second
+
+	for {
+		conn, err := messaging.Connect(&natsCfg, nil)
+		if err == nil {
+			nc = conn
+			break
+		}
+		supervisor.LogError("watchdog", "Failed to connect to NATS control plane (%v); retrying in %v...", err, backoff)
+		time.Sleep(backoff)
+		backoff = time.Duration(float64(backoff) * 1.5)
+		if backoff > maxBackoff {
+			backoff = maxBackoff
+		}
 	}
 	defer nc.Close()
 

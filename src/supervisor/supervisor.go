@@ -44,13 +44,21 @@ var (
 // LogInfo writes a formatted message with watchdog prefix to stdout/logger
 func LogInfo(svc, format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
-	Logger.Info("[%s] %s", svc, msg)
+	if Logger != nil {
+		Logger.Info("[%s] %s", svc, msg)
+	} else {
+		fmt.Printf("[%s] %s\n", svc, msg)
+	}
 }
 
 // LogError writes a formatted error message with watchdog prefix to stderr/logger
 func LogError(svc, format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
-	Logger.Error("[%s] %s", svc, msg)
+	if Logger != nil {
+		Logger.Error("[%s] %s", svc, msg)
+	} else {
+		fmt.Fprintf(os.Stderr, "[%s] %s\n", svc, msg)
+	}
 }
 
 // FindServiceByName retrieves a registered service pointer by name

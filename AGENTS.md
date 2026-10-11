@@ -27,3 +27,6 @@ go test -v ./...
 3. **Symlink Self-Healing**: When adding new microservices to the base ecosystem, register their symlink path in `src/config/heal.go`.
 4. **Header Ritual**: All Go source files MUST contain the Triple-Block header (`ESSENTIAL PROCESS`, `DATA FLOW`, `KEY PARAMETERS`).
 5. **Section Dividers**: Use `// -----------------------------------------------------------------------------` between exported methods and major sections.
+6. **L1 Resilience, Connectivity & Infinite Retry Contract**:
+   - OpenMFE registration to `web-interface` must run in a non-blocking background goroutine with infinite retries (`MaxRetries: -1`), exponential backoff, and dynamic address resolution via `cfg.GetListenAddr("web_interface")`.
+   - NATS control plane connection must retry with exponential backoff on startup until the broker is online; it must never permanently abort on initial connection failure.

@@ -19,11 +19,11 @@ package supervisor
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/utils"
@@ -236,11 +236,8 @@ func resolveServiceAddr(cfg *config.AppConfig, capName string, defaultIP, defaul
 
 	addr, err := cfg.GetListenAddr(capName)
 	if err == nil && addr != "" {
-		if strings.Contains(addr, ":") {
-			sp := strings.Split(addr, ":")
-			if len(sp) == 2 {
-				return sp[0], sp[1]
-			}
+		if host, port, splitErr := net.SplitHostPort(addr); splitErr == nil {
+			return host, port
 		}
 	}
 	return defaultIP, defaultPort

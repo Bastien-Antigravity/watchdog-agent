@@ -48,7 +48,20 @@ func main() {
 	buildFlag := flag.Bool("build", true, "Automatically build binaries on startup")
 	flag.Parse()
 
-	// 1. Initialize Service via Unified Ecosystem Bootstrapper
+	// 1. Resolve workspace root dynamically
+	rootDir, err := utils.FindWorkspaceRoot()
+	if err != nil {
+		supervisor.LogError("watchdog", "Failed to find workspace root: %v", err)
+		os.Exit(1)
+	}
+
+	// 2. Heal config symlinks before loading AppConfig to guarantee valid standalone.yaml
+	if err := watchdog_config.HealSymlinks(rootDir); err != nil {
+		supervisor.LogError("watchdog", "Failed to heal ecosystem config symlinks: %v", err)
+		os.Exit(1)
+	}
+
+	// 3. Initialize Service via Unified Ecosystem Bootstrapper
 	cfg, appLogger := toolbox_bootstrap.BootstrapService("watchdog-agent")
 	if cfg == nil || appLogger == nil {
 		panic("Failed to bootstrap watchdog-agent: cfg and appLogger must not be nil")
@@ -57,20 +70,7 @@ func main() {
 	supervisor.Logger = appLogger
 
 	supervisor.LogInfo("watchdog", "Starting Bastien-Antigravity Watchdog Agent (Profile: %s)...", *profileFlag)
-
-	// Resolve workspace root dynamically
-	rootDir, err := utils.FindWorkspaceRoot()
-	if err != nil {
-		supervisor.LogError("watchdog", "Failed to find workspace root: %v", err)
-		os.Exit(1)
-	}
 	supervisor.LogInfo("watchdog", "Resolved workspace root: %s", rootDir)
-
-	// Heal config symlinks
-	if err := watchdog_config.HealSymlinks(rootDir); err != nil {
-		supervisor.LogError("watchdog", "Failed to heal ecosystem config symlinks: %v", err)
-		os.Exit(1)
-	}
 
 	// Detect local host IPs to determine local service assignments
 	localIPs, err := utils.GetLocalIPs()
@@ -89,6 +89,9 @@ func main() {
 	defer lockFile.Close()
 
 	defaultHost := os.Getenv("HOST_IP")
+	if defaultHost == "" && cfg.Config != nil && cfg.Config.Common.PublicIP != "" {
+		defaultHost = cfg.Config.Common.PublicIP
+	}
 	if defaultHost == "" {
 		defaultHost = "127.0.0.1"
 	}
@@ -111,40 +114,73 @@ func main() {
 	}
 	baseEnv := filteredEnv
 
-	// Inherit or inject default MFE and Base Scripts configurations
-	wbIP := os.Getenv("WB_IP")
+	// Inherit or resolve Web Interface and Base Scripts configurations from distributed config
+	wbIP, wbPort := "", ""
+	if addr, err := cfg.GetListenAddr("web_interface"); err == nil && addr != "" {
+		if host, port, splitErr := net.SplitHostPort(addr); splitErr == nil {
+			wbIP, wbPort = host, port
+		}
+	}
+	if envIP := os.Getenv("WB_IP"); envIP != "" {
+		wbIP = envIP
+	}
+	if envPort := os.Getenv("WB_PORT"); envPort != "" {
+		wbPort = envPort
+	}
 	if wbIP == "" {
 		wbIP = defaultHost
 	}
-	wbPort := os.Getenv("WB_PORT")
-	if wbPort == "" {
-		wbPort = "5000"
+
+	wbGrpcIP, wbGrpcPort := "", ""
+	if addr, err := cfg.GetGRPCListenAddr("web_interface"); err == nil && addr != "" {
+		if host, port, splitErr := net.SplitHostPort(addr); splitErr == nil {
+			wbGrpcIP, wbGrpcPort = host, port
+		}
 	}
-	wbGrpcIP := os.Getenv("WB_GRPC_IP")
+	if envIP := os.Getenv("WB_GRPC_IP"); envIP != "" {
+		wbGrpcIP = envIP
+	}
+	if envPort := os.Getenv("WB_GRPC_PORT"); envPort != "" {
+		wbGrpcPort = envPort
+	}
 	if wbGrpcIP == "" {
 		wbGrpcIP = defaultHost
 	}
-	wbGrpcPort := os.Getenv("WB_GRPC_PORT")
-	if wbGrpcPort == "" {
-		wbGrpcPort = "8001"
+
+	bsIP, bsPort := "", ""
+	if addr, err := cfg.GetListenAddr("base_scripts"); err == nil && addr != "" {
+		if host, port, splitErr := net.SplitHostPort(addr); splitErr == nil {
+			bsIP, bsPort = host, port
+		}
 	}
-	bsIP := os.Getenv("BS_IP")
+	if envIP := os.Getenv("BS_IP"); envIP != "" {
+		bsIP = envIP
+	}
+	if envPort := os.Getenv("BS_PORT"); envPort != "" {
+		bsPort = envPort
+	}
 	if bsIP == "" {
 		bsIP = defaultHost
 	}
-	bsPort := os.Getenv("BS_PORT")
-	if bsPort == "" {
-		bsPort = "8085"
-	}
 
-	baseEnv = append(baseEnv,
-		fmt.Sprintf("WB_IP=%s", wbIP),
-		fmt.Sprintf("WB_PORT=%s", wbPort),
-		fmt.Sprintf("WB_GRPC_IP=%s", wbGrpcIP),
-		fmt.Sprintf("WB_GRPC_PORT=%s", wbGrpcPort),
-		fmt.Sprintf("BS_IP=%s", bsIP),
-		fmt.Sprintf("BS_PORT=%s", bsPort),
-	)
+	if wbIP != "" {
+		baseEnv = append(baseEnv, fmt.Sprintf("WB_IP=%s", wbIP))
+	}
+	if wbPort != "" {
+		baseEnv = append(baseEnv, fmt.Sprintf("WB_PORT=%s", wbPort))
+	}
+	if wbGrpcIP != "" {
+		baseEnv = append(baseEnv, fmt.Sprintf("WB_GRPC_IP=%s", wbGrpcIP))
+	}
+	if wbGrpcPort != "" {
+		baseEnv = append(baseEnv, fmt.Sprintf("WB_GRPC_PORT=%s", wbGrpcPort))
+	}
+	if bsIP != "" {
+		baseEnv = append(baseEnv, fmt.Sprintf("BS_IP=%s", bsIP))
+	}
+	if bsPort != "" {
+		baseEnv = append(baseEnv, fmt.Sprintf("BS_PORT=%s", bsPort))
+	}
 
 	// Compile local binaries if required (e.g. if --build=true)
 	if *buildFlag {
@@ -230,7 +266,7 @@ func main() {
 		}
 	}()
 
-	// Register watchdog OpenMFE with web-interface dynamically
+	// Register watchdog OpenMFE with web-interface dynamically (non-blocking, infinite retry)
 	go func() {
 		mfeUrl := fmt.Sprintf("http://%s/static/mfe.js", restAddr)
 		payload := fmt.Sprintf(`{
@@ -241,32 +277,34 @@ func main() {
 		}`, mfeUrl)
 
 		client := &http.Client{Timeout: 3 * time.Second}
-		for i := 0; i < 15; i++ {
-			var webIP, webPort string
-			webSvc := supervisor.FindServiceByName("web-interface")
-			if webSvc != nil {
-				webIP = webSvc.IP
-				webPort = webSvc.Port
-			} else {
-				webIP = "127.0.0.1"
-				webPort = "5000"
-			}
-			regUrl := fmt.Sprintf("http://%s:%s/api/v1/register", webIP, webPort)
+		backoff := 2 * time.Second
+		maxBackoff := 15 * time.Second
 
-			resp, err := client.Post(regUrl, "application/json", strings.NewReader(payload))
-			if err == nil {
-				resp.Body.Close()
-				if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-					appLogger.Info("Successfully registered watchdog OpenMFE with web-interface at %s", regUrl)
-					return
+		for {
+			webAddr, err := cfg.GetListenAddr("web_interface")
+			if err == nil && webAddr != "" {
+				regUrl := fmt.Sprintf("http://%s/api/v1/register", webAddr)
+				resp, postErr := client.Post(regUrl, "application/json", strings.NewReader(payload))
+				if postErr == nil {
+					resp.Body.Close()
+					if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+						appLogger.Info("Successfully registered watchdog OpenMFE with web-interface at %s", regUrl)
+						return
+					}
+					appLogger.Warning("OpenMFE registration attempt failed with status %s; retrying in %v...", resp.Status, backoff)
+				} else {
+					appLogger.Warning("OpenMFE registration attempt failed (%v); retrying in %v...", postErr, backoff)
 				}
-				appLogger.Warning("OpenMFE registration attempt %d failed with status %s", i+1, resp.Status)
 			} else {
-				appLogger.Warning("OpenMFE registration attempt %d failed: %v", i+1, err)
+				appLogger.Warning("web_interface capability address unresolvable (%v); retrying in %v...", err, backoff)
 			}
-			time.Sleep(3 * time.Second)
+
+			time.Sleep(backoff)
+			backoff = time.Duration(float64(backoff) * 1.5)
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
 		}
-		appLogger.Warning("Failed to register watchdog OpenMFE with web-interface after 15 attempts")
 	}()
 
 	// Initialize Lifecycle Manager
