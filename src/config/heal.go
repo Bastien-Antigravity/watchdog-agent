@@ -70,7 +70,7 @@ func HealSymlinks(rootDir string) error {
 		{"obsidian-brain/04-Rapid-Prototyping/standalone.yaml", "../../" + baseConfigPath},
 		{"obsidian-brain/05-Fleet-Operation/standalone.yaml", "../../" + baseConfigPath},
 		{"obsidian-brain/07-Core-KMS/standalone.yaml", "../../" + baseConfigPath},
-		{"obsidian-brain/08-Base-Scripts/standalone.yaml", "../../" + baseConfigPath},
+		{"obsidian-brain/08-Squad-Agent/standalone.yaml", "../../" + baseConfigPath},
 		{"obsidian-brain/09-RAG-Engine/standalone.yaml", "../../" + baseConfigPath},
 		{"obsidian-brain/10-Agent-Factory/standalone.yaml", "../../" + baseConfigPath},
 		{"sandbox-testing/standalone.yaml", "../" + baseConfigPath},

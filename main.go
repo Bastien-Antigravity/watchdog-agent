@@ -147,20 +147,30 @@ func main() {
 		wbGrpcIP = defaultHost
 	}
 
-	bsIP, bsPort := "", ""
-	if addr, err := cfg.GetListenAddr("base_scripts"); err == nil && addr != "" {
+	saIP, saPort := "", ""
+	if addr, err := cfg.GetListenAddr("squad_agent"); err == nil && addr != "" {
 		if host, port, splitErr := net.SplitHostPort(addr); splitErr == nil {
-			bsIP, bsPort = host, port
+			saIP, saPort = host, port
 		}
 	}
-	if envIP := os.Getenv("BS_IP"); envIP != "" {
-		bsIP = envIP
+	if envIP := os.Getenv("SA_IP"); envIP != "" {
+		saIP = envIP
 	}
-	if envPort := os.Getenv("BS_PORT"); envPort != "" {
-		bsPort = envPort
+	if envPort := os.Getenv("SA_PORT"); envPort != "" {
+		saPort = envPort
 	}
-	if bsIP == "" {
-		bsIP = defaultHost
+	if saIP == "" {
+		saIP = defaultHost
+	}
+
+	saGrpcPort := ""
+	if addr, err := cfg.GetGRPCListenAddr("squad_agent"); err == nil && addr != "" {
+		if _, port, splitErr := net.SplitHostPort(addr); splitErr == nil {
+			saGrpcPort = port
+		}
+	}
+	if envPort := os.Getenv("SA_GRPC_PORT"); envPort != "" {
+		saGrpcPort = envPort
 	}
 
 	if wbIP != "" {
@@ -175,11 +185,14 @@ func main() {
 	if wbGrpcPort != "" {
 		baseEnv = append(baseEnv, fmt.Sprintf("WB_GRPC_PORT=%s", wbGrpcPort))
 	}
-	if bsIP != "" {
-		baseEnv = append(baseEnv, fmt.Sprintf("BS_IP=%s", bsIP))
+	if saIP != "" {
+		baseEnv = append(baseEnv, fmt.Sprintf("SA_IP=%s", saIP))
 	}
-	if bsPort != "" {
-		baseEnv = append(baseEnv, fmt.Sprintf("BS_PORT=%s", bsPort))
+	if saPort != "" {
+		baseEnv = append(baseEnv, fmt.Sprintf("SA_PORT=%s", saPort))
+	}
+	if saGrpcPort != "" {
+		baseEnv = append(baseEnv, fmt.Sprintf("SA_GRPC_PORT=%s", saGrpcPort))
 	}
 
 	// Compile local binaries if required (e.g. if --build=true)

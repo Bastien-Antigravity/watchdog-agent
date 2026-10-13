@@ -30,3 +30,7 @@ go test -v ./...
 6. **L1 Resilience, Connectivity & Infinite Retry Contract**:
    - OpenMFE registration to `web-interface` must run in a non-blocking background goroutine with infinite retries (`MaxRetries: -1`), exponential backoff, and dynamic address resolution via `cfg.GetListenAddr("web_interface")`.
    - NATS control plane connection must retry with exponential backoff on startup until the broker is online; it must never permanently abort on initial connection failure.
+7. **Dynamic NATS Process Supervision & Zero-Conf Launch**:
+   - `nats-server` process launch is driven entirely by dynamic CLI arguments constructed from `capabilities.nats` in configuration (`-js`, `-sd <store_dir>`, `-p <port>`, `-a <ip>`, `-m <http_port>`, `-n <server_name>`).
+   - If `tls.enabled: true` or non-loopback IP with certificate assets is configured, the supervisor automatically injects `--tls`, `--tlscert`, `--tlskey`, `--tlsverify`, and `--tlscacert`.
+   - Never rely on static or hardcoded `nats-server.conf` files or directories.

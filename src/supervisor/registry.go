@@ -156,14 +156,14 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 			LogColor: ColorRagDashboard,
 		},
 		{
-			Name:     "start-squad",
-			CapName:  "base_scripts",
-			Path:     filepath.Join(rootDir, "obsidian-brain", "08-Base-Scripts"),
+			Name:     "squad-agent",
+			CapName:  "squad_agent",
+			Path:     filepath.Join(rootDir, "obsidian-brain", "08-Squad-Agent"),
 			BuildCmd: "",
-			RunCmd:   utils.FindPythonCmd(filepath.Join(rootDir, "obsidian-brain", "08-Base-Scripts")),
-			RunArgs:  []string{"main.py", "start-squad"},
+			RunCmd:   utils.FindPythonCmd(filepath.Join(rootDir, "obsidian-brain", "08-Squad-Agent")),
+			RunArgs:  []string{"main.py", "squad-agent"},
 			Deps:     []string{"log-server", "config-server", "nats-server"},
-			LogColor: ColorStartSquad,
+			LogColor: ColorSquadAgent,
 		},
 	}
 
@@ -189,7 +189,7 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 			defaultPort = "8082"
 		case "nats-server":
 			defaultPort = "4222"
-		case "start-squad":
+		case "squad-agent":
 			defaultPort = "8085"
 		}
 
@@ -198,6 +198,10 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 			httpPort := "8222"
 			serverName := "nats-server"
 			storeDir := filepath.Join(rootDir, "docker-deployment", "data", "jetstream")
+
+			var tlsEnabled bool
+			var tlsCert, tlsKey, tlsCA string
+			var tlsVerify bool
 
 			if capMap, ok := cfg.Capabilities["nats"].(map[string]interface{}); ok {
 				if hp, exists := capMap["http_port"]; exists && hp != nil && fmt.Sprintf("%v", hp) != "" {
@@ -216,8 +220,57 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 						}
 					}
 				}
+				if tlsMap, ok := capMap["tls"].(map[string]interface{}); ok {
+					if en, exists := tlsMap["enabled"]; exists && (en == true || fmt.Sprintf("%v", en) == "true") {
+						tlsEnabled = true
+					}
+					if cert, exists := tlsMap["cert_file"]; exists && cert != nil {
+						tlsCert = fmt.Sprintf("%v", cert)
+					}
+					if key, exists := tlsMap["key_file"]; exists && key != nil {
+						tlsKey = fmt.Sprintf("%v", key)
+					}
+					if ca, exists := tlsMap["ca_file"]; exists && ca != nil {
+						tlsCA = fmt.Sprintf("%v", ca)
+					}
+					if ver, exists := tlsMap["verify"]; exists && (ver == true || fmt.Sprintf("%v", ver) == "true") {
+						tlsVerify = true
+					}
+				}
 			}
-			svc.RunArgs = []string{"-js", "-sd", storeDir, "-p", svc.Port, "-a", svc.IP, "-m", httpPort, "-n", serverName}
+
+			// If binding outside loopback (non-127.0.0.1 / localhost) and certs are defined, or explicitly enabled
+			isOutsideLoopback := svc.IP != "127.0.0.1" && svc.IP != "localhost" && svc.IP != ""
+			if (isOutsideLoopback && tlsCert != "" && tlsKey != "") || tlsEnabled {
+				tlsEnabled = true
+			}
+
+			args := []string{"-js", "-sd", storeDir, "-p", svc.Port, "-a", svc.IP, "-m", httpPort, "-n", serverName}
+			if tlsEnabled {
+				args = append(args, "--tls")
+				if tlsCert != "" {
+					if !filepath.IsAbs(tlsCert) {
+						tlsCert = filepath.Join(rootDir, tlsCert)
+					}
+					args = append(args, "--tlscert", tlsCert)
+				}
+				if tlsKey != "" {
+					if !filepath.IsAbs(tlsKey) {
+						tlsKey = filepath.Join(rootDir, tlsKey)
+					}
+					args = append(args, "--tlskey", tlsKey)
+				}
+				if tlsVerify {
+					args = append(args, "--tlsverify")
+				}
+				if tlsCA != "" {
+					if !filepath.IsAbs(tlsCA) {
+						tlsCA = filepath.Join(rootDir, tlsCA)
+					}
+					args = append(args, "--tlscacert", tlsCA)
+				}
+			}
+			svc.RunArgs = args
 		}
 		if svc.Name == "rag-dashboard" {
 			if capMap, ok := cfg.Capabilities["rag_engine"].(map[string]interface{}); ok {

@@ -25,7 +25,7 @@ The agent acts as a supervisor that orchestrates the execution of:
 - `rag-engine` (Python, RAG MCP)
 - `rag-dashboard` (Python)
 - `web-interface` (Go)
-- `start-squad` (Go)
+- `squad-agent` (Python)
 
 It also acts as a telemetry broker that monitors:
 - `timescale-db` (External TimescaleDB/Postgres database)

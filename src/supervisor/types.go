@@ -39,7 +39,7 @@ const (
 	ColorRagEngine    = "\033[1;31m" // Bold Red
 	ColorRagDashboard = "\033[1;95m" // Bold Light Purple
 	ColorWebInterface = "\033[1;94m" // Bold Light Blue
-	ColorStartSquad   = "\033[1;92m" // Bold Light Green
+	ColorSquadAgent   = "\033[1;92m" // Bold Light Green
 	ColorReset        = "\033[0m"
 )
 
