@@ -114,7 +114,7 @@ func main() {
 	}
 	baseEnv := filteredEnv
 
-	// Inherit or resolve Web Interface and Base Scripts configurations from distributed config
+	// Inherit or resolve Web Interface and Squad Agent configurations from distributed config
 	wbIP, wbPort := "", ""
 	if addr, err := cfg.GetListenAddr("web_interface"); err == nil && addr != "" {
 		if host, port, splitErr := net.SplitHostPort(addr); splitErr == nil {
