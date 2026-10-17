@@ -11,7 +11,7 @@ package supervisor
 //    addresses, and runtime execution handles.
 //
 // KEY PARAMETERS:
-// - Logger: Shared ILogger instance for logging across supervisor subsystems.
+// - Logger: Shared Logger instance for logging across supervisor subsystems.
 // - Service: Thread-safe runtime specification for supervised processes.
 // =============================================================================
 

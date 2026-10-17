@@ -14,7 +14,7 @@ package rest
 //
 // KEY PARAMETERS:
 // - control: core.WatchdogController interface for state inspection and restarts.
-// - logger: Unified ILogger interface for request and audit logging.
+// - logger: Unified Logger interface for request and audit logging.
 // =============================================================================
 
 import (
