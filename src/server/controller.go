@@ -21,10 +21,17 @@ import (
 	"fmt"
 	"time"
 
+	toolbox_version "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/version"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/core"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/supervisor"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/utils"
 )
+
+// -----------------------------------------------------------------------------
+
+// ServerVersion defines the release version reported in status telemetry.
+// Dynamically resolved from microservice-toolbox (BuildVersion link-time flag or VERSION.txt).
+var ServerVersion = toolbox_version.Get()
 
 // -----------------------------------------------------------------------------
 
@@ -86,7 +93,7 @@ func (c *Controller) GetStatus(ctx context.Context) (core.WatchdogStatusInfo, er
 	return core.WatchdogStatusInfo{
 		Healthy:           true,
 		Status:            "Running",
-		Version:           "1.0.0",
+		Version:           ServerVersion,
 		Timestamp:         time.Now().Unix(),
 		UptimeSeconds:     int64(time.Since(c.startTime).Seconds()),
 		Services:          statuses,

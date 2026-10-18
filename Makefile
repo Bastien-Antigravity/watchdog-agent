@@ -1,4 +1,5 @@
 VERSION := $(shell cat VERSION.txt 2>/dev/null || echo "0.0.1")
+LDFLAGS := -s -w -X 'github.com/Bastien-Antigravity/watchdog-agent/src/server.ServerVersion=$(VERSION)'
 
 .PHONY: all build test version clean
 
@@ -9,7 +10,8 @@ version:
 
 build:
 	@echo "Building watchdog-agent (version $(VERSION))..."
-	@if [ -f "go.mod" ]; then go build -o bin/watchdog-agent ./main.go || true; fi
+	@mkdir -p bin
+	@if [ -f "go.mod" ]; then go build -ldflags="$(LDFLAGS)" -o bin/watchdog-agent ./main.go || true; fi
 
 test:
 	@echo "Running tests (version $(VERSION))..."
