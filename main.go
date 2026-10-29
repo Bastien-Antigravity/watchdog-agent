@@ -286,7 +286,12 @@ func main() {
 			"name": "watchdog-agent",
 			"tag": "watchdog-agent-mfe",
 			"url": "%s",
-			"navTitle": "🤖 Watchdog"
+			"navTitle": "🤖 Watchdog",
+			"layer": "L1",
+			"category": "Base Fleet",
+			"priority": 10,
+			"icon": "fa-shield",
+			"requiresAuth": false
 		}`, mfeUrl)
 
 		client := &http.Client{Timeout: 3 * time.Second}
