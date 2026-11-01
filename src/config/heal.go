@@ -85,6 +85,7 @@ func HealSymlinks(rootDir string) error {
 		{"watchdog-agent/standalone.yaml", "../" + baseConfigPath},
 		{"web-interface/standalone.yaml", "../" + baseConfigPath},
 		{"web-interface/cmd/web-interface/standalone.yaml", "../../../" + baseConfigPath},
+		{"web-interface/bin/standalone.yaml", "../../../" + baseConfigPath},
 		{"docker-deployment/modes/local/inventory.json", "../../../obsidian-brain/05-Fleet-Operation/00-Repo-Control/inventory.json"},
 		{"docker-deployment/modes/docker/inventory.json", "../../../obsidian-brain/05-Fleet-Operation/00-Repo-Control/inventory.json"},
 		{"docker-deployment/modes/production/inventory.json", "../../../obsidian-brain/05-Fleet-Operation/00-Repo-Control/inventory.json"},
