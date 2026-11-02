@@ -23,15 +23,14 @@ import (
 	"flag"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	toolbox_bootstrap "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/bootstrap"
 	toolbox_lifecycle "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/lifecycle"
+	toolbox_spec "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/spec"
 	watchdog_config "github.com/Bastien-Antigravity/watchdog-agent/src/config"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/control"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/rest"
@@ -279,54 +278,24 @@ func main() {
 		}
 	}()
 
-	// Register watchdog OpenMFE with web-interface dynamically (non-blocking, infinite retry)
-	go func() {
-		mfeUrl := fmt.Sprintf("http://%s/static/mfe.js", restAddr)
-		payload := fmt.Sprintf(`{
-			"name": "watchdog-agent",
-			"tag": "watchdog-agent-mfe",
-			"url": "%s",
-			"navTitle": "🤖 Watchdog",
-			"layer": "L1",
-			"category": "Base Fleet",
-			"priority": 10,
-			"icon": "fa-shield",
-			"requiresAuth": false
-		}`, mfeUrl)
-
-		client := &http.Client{Timeout: 3 * time.Second}
-		backoff := 2 * time.Second
-		maxBackoff := 15 * time.Second
-
-		for {
-			webAddr, err := cfg.GetListenAddr("web_interface")
-			if err == nil && webAddr != "" {
-				regUrl := fmt.Sprintf("http://%s/api/v1/register", webAddr)
-				resp, postErr := client.Post(regUrl, "application/json", strings.NewReader(payload))
-				if postErr == nil {
-					resp.Body.Close()
-					if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-						appLogger.Info("Successfully registered watchdog OpenMFE with web-interface at %s", regUrl)
-						return
-					}
-					appLogger.Warning("OpenMFE registration attempt failed with status %s; retrying in %v...", resp.Status, backoff)
-				} else {
-					appLogger.Warning("OpenMFE registration attempt failed (%v); retrying in %v...", postErr, backoff)
-				}
-			} else {
-				appLogger.Warning("web_interface capability address unresolvable (%v); retrying in %v...", err, backoff)
-			}
-
-			time.Sleep(backoff)
-			backoff = time.Duration(float64(backoff) * 1.5)
-			if backoff > maxBackoff {
-				backoff = maxBackoff
-			}
-		}
-	}()
-
 	// Initialize Lifecycle Manager
 	lm := toolbox_lifecycle.NewManagerWithLogger(appLogger)
+
+	mfeUrl := fmt.Sprintf("http://%s/static/mfe.js", restAddr)
+	_ = toolbox_spec.PublishWithLifecycle(cfg, appLogger, lm, "watchdog_agent", toolbox_spec.ServiceSpec{
+		Name:        "Watchdog Agent",
+		Tag:         "watchdog-agent-mfe",
+		URL:         mfeUrl,
+		NavTitle:    "Watchdog Agent",
+		Layer:       "L1",
+		Category:    "Base Fleet",
+		Priority:    10,
+		Icon:        "fa-shield",
+		Description: "Local node supervisor, process orchestrator, health monitor, and configuration symlink healer.",
+		Protocol:    "HTTP/1.1 REST",
+		Framing:     fmt.Sprintf("Port %d REST", restPort),
+		DocLink:     "obsidian-brain/06-Microservices/Watchdog-Agent-Hub.md",
+	})
 
 	// Setup Telegram client
 	telegram.SetupTelegram(cfg, ctrl, appLogger, lm)
