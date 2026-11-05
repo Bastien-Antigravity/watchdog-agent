@@ -69,10 +69,10 @@ func LaunchPostgresAttempt(addr string) bool {
 	case "linux": // Linux
 		if _, err := exec.LookPath("systemctl"); err == nil {
 			LogInfo("postgres-launcher", "Linux: Attempting systemctl start postgresql")
-			exec.Command("sudo", "systemctl", "start", "postgresql").Run()
+			exec.Command("sudo", "-n", "systemctl", "start", "postgresql").Run()
 		} else if _, err := exec.LookPath("service"); err == nil {
 			LogInfo("postgres-launcher", "Linux: Attempting service postgresql start")
-			exec.Command("sudo", "service", "postgresql", "start").Run()
+			exec.Command("sudo", "-n", "service", "postgresql", "start").Run()
 		}
 	case "windows": // Windows
 		LogInfo("postgres-launcher", "Windows: Attempting net start postgresql")

@@ -62,17 +62,21 @@ func (m *MenuManager) RebuildMenu() {
 	actions = append(actions, toolbox_teleclient.Action{
 		Label: "📊 Fleet Status",
 		Callback: func(input string) error {
+			// Query current live status rather than boot-time closure capture [WD-06]
+			currentStatus, err := m.controller.GetStatus(context.Background())
+			if err != nil {
+				return err
+			}
 			var sb strings.Builder
-			sb.WriteString(fmt.Sprintf("🤖 Watchdog Agent (Uptime: %ds)\n\n", status.UptimeSeconds))
-			for _, svc := range status.Services {
+			sb.WriteString(fmt.Sprintf("🤖 Watchdog Agent (Uptime: %ds)\n\n", currentStatus.UptimeSeconds))
+			for _, svc := range currentStatus.Services {
 				state := "🔴 OFFLINE"
 				if svc.Running {
 					state = fmt.Sprintf("🟢 RUNNING (PID %d)", svc.PID)
 				}
 				sb.WriteString(fmt.Sprintf("• *%s*: %s\n", svc.Name, state))
 			}
-			m.logger.Info(sb.String())
-			return nil
+			return m.tc.SendTelemetry(sb.String())
 		},
 	})
 

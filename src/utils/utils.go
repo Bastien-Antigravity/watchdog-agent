@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -121,15 +122,28 @@ func FindPythonCmd(dir string) string {
 	return "python3"
 }
 
-// KillProcessOnPort forcefully terminates any process listening on a port
+// KillProcessOnPort forcefully terminates any process listening on a port [WD-01]
 func KillProcessOnPort(port string) {
 	if runtime.GOOS == "windows" {
 		cmd := exec.Command("cmd", "/c", fmt.Sprintf("for /f \"tokens=5\" %%a in ('netstat -aon ^| findstr :%s ^| findstr LISTENING') do taskkill /F /PID %%a", port))
 		_ = cmd.Run()
 		return
 	}
-	cmd := exec.Command("sh", "-c", fmt.Sprintf("lsof -ti :%s | xargs kill -9", port))
-	_ = cmd.Run()
+	selfPID := strconv.Itoa(os.Getpid())
+	cmd := exec.Command("lsof", "-nP", fmt.Sprintf("-iTCP:%s", port), "-sTCP:LISTEN", "-t")
+	output, err := cmd.Output()
+	if err != nil {
+		return
+	}
+	pids := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, pid := range pids {
+		pid = strings.TrimSpace(pid)
+		if pid == "" || pid == selfPID {
+			continue
+		}
+		killCmd := exec.Command("kill", "-9", pid)
+		_ = killCmd.Run()
+	}
 }
 
 // IsOccupantFleetService checks if the process listening on a port is a base/fleet service.
@@ -144,7 +158,7 @@ func IsOccupantFleetService(port string) (bool, error) {
 	}
 
 	// 1. Run lsof to get PIDs
-	cmd := exec.Command("lsof", "-t", "-i", fmt.Sprintf(":%s", port), "-sTCP:LISTEN")
+	cmd := exec.Command("lsof", "-nP", fmt.Sprintf("-iTCP:%s", port), "-sTCP:LISTEN", "-t")
 	output, err := cmd.Output()
 	if err != nil {
 		// If lsof fails or returns empty, assume not listening or not a fleet service
@@ -173,7 +187,7 @@ func IsOccupantFleetService(port string) (bool, error) {
 
 		commandLine := strings.ToLower(string(psOutput))
 
-		// Check against base/fleet services keywords
+		// Check against base/fleet services keywords [WD-01: exclude docker/postgres engines]
 		fleetKeywords := []string{
 			"watchdog-agent",
 			"web-interface",
@@ -183,10 +197,6 @@ func IsOccupantFleetService(port string) (bool, error) {
 			"tele-remote",
 			"main.py",
 			"nats-server",
-			"docker",
-			"docker-proxy",
-			"com.docker",
-			"postgres",
 			"timescaledb",
 		}
 

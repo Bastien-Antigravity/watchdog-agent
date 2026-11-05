@@ -18,6 +18,7 @@ package utils
 import (
 	"os/exec"
 	"syscall"
+	"time"
 )
 
 // -----------------------------------------------------------------------------
@@ -27,20 +28,39 @@ func SetSysProcAttrGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 }
 
-// KillProcessGroup forcefully terminates a process and all of its subprocesses (process group)
+// KillProcessGroup terminates a process and all of its subprocesses (process group),
+// attempting graceful SIGTERM first before sending SIGKILL [WD-04].
 func KillProcessGroup(cmd *exec.Cmd) {
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
 	pgid, err := syscall.Getpgid(cmd.Process.Pid)
 	if err == nil {
+		_ = syscall.Kill(-pgid, syscall.SIGTERM)
+		// Give process tree a brief window to flush buffers and exit cleanly
+		done := make(chan struct{})
+		go func() {
+			for i := 0; i < 20; i++ {
+				time.Sleep(100 * time.Millisecond)
+				if err := syscall.Kill(-pgid, 0); err != nil {
+					close(done)
+					return
+				}
+			}
+			close(done)
+		}()
+		<-done
 		_ = syscall.Kill(-pgid, syscall.SIGKILL)
 	} else {
+		_ = cmd.Process.Signal(syscall.SIGTERM)
+		time.Sleep(200 * time.Millisecond)
 		_ = cmd.Process.Kill()
 	}
 }
 
-// KillProcessGroupByID forcefully terminates a process group using its PID
+// KillProcessGroupByID terminates a process group using its PID, trying SIGTERM before SIGKILL
 func KillProcessGroupByID(pid int) {
+	_ = syscall.Kill(-pid, syscall.SIGTERM)
+	time.Sleep(300 * time.Millisecond)
 	_ = syscall.Kill(-pid, syscall.SIGKILL)
 }

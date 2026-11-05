@@ -57,7 +57,11 @@ func NewController(postgresAddr, ragMcpAddr string) *Controller {
 // GetStatus retrieves the status metadata of all supervised services
 func (c *Controller) GetStatus(ctx context.Context) (core.WatchdogStatusInfo, error) {
 	var statuses []core.ServiceStatus
+	hasTimescale := false
 	for _, svc := range supervisor.Services {
+		if svc.Name == "timescale-db" {
+			hasTimescale = true
+		}
 		svc.Mu.Lock()
 		pid := 0
 		if svc.Running && svc.Cmd != nil && svc.Cmd.Process != nil {
@@ -75,13 +79,15 @@ func (c *Controller) GetStatus(ctx context.Context) (core.WatchdogStatusInfo, er
 	pgConnected := supervisor.IsPortListening(c.postgresAddr, 500*time.Millisecond)
 	mcpConnected := supervisor.IsPortListening(c.ragMcpAddr, 500*time.Millisecond)
 
-	// Append external/virtual status entries so they appear in the dashboard's service table
-	statuses = append(statuses, core.ServiceStatus{
-		Name:    "timescale-db",
-		Running: pgConnected,
-		PID:     0,
-		Deps:    []string{},
-	})
+	// Append external/virtual status entries if not already managed as a supervisor service [WD-05]
+	if !hasTimescale {
+		statuses = append(statuses, core.ServiceStatus{
+			Name:    "timescale-db",
+			Running: pgConnected,
+			PID:     0,
+			Deps:    []string{},
+		})
+	}
 
 	statuses = append(statuses, core.ServiceStatus{
 		Name:    "rag-mcp",
@@ -106,7 +112,13 @@ func (c *Controller) GetStatus(ctx context.Context) (core.WatchdogStatusInfo, er
 
 // RestartService forcefully terminates the process group of a service to let it auto-restart
 func (c *Controller) RestartService(ctx context.Context, name string) error {
-	svc := supervisor.FindServiceByName(name)
+	targetName := name
+	// Map virtual rag-mcp to its backend service rag-engine [WD-05]
+	if name == "rag-mcp" {
+		targetName = "rag-engine"
+	}
+
+	svc := supervisor.FindServiceByName(targetName)
 	if svc == nil {
 		return fmt.Errorf("service not found: %s", name)
 	}

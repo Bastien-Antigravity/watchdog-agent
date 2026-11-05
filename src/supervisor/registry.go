@@ -204,36 +204,29 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 			var tlsVerify bool
 
 			if capMap, ok := cfg.Capabilities["nats"].(map[string]interface{}); ok {
-				if hp, exists := capMap["http_port"]; exists && hp != nil && fmt.Sprintf("%v", hp) != "" {
-					httpPort = fmt.Sprintf("%v", hp)
+				if hp := mapString(capMap, "http_port"); hp != "" {
+					httpPort = hp
 				}
-				if sn, exists := capMap["server_name"]; exists && sn != nil && fmt.Sprintf("%v", sn) != "" {
-					serverName = fmt.Sprintf("%v", sn)
+				if sn := mapString(capMap, "server_name"); sn != "" {
+					serverName = sn
 				}
 				if js, ok := capMap["jetstream"].(map[string]interface{}); ok {
-					if sd, exists := js["store_dir"]; exists && sd != nil && fmt.Sprintf("%v", sd) != "" {
-						sdStr := fmt.Sprintf("%v", sd)
-						if filepath.IsAbs(sdStr) {
-							storeDir = sdStr
+					if sd := mapString(js, "store_dir"); sd != "" {
+						if filepath.IsAbs(sd) {
+							storeDir = sd
 						} else {
-							storeDir = filepath.Join(rootDir, sdStr)
+							storeDir = filepath.Join(rootDir, sd)
 						}
 					}
 				}
 				if tlsMap, ok := capMap["tls"].(map[string]interface{}); ok {
-					if en, exists := tlsMap["enabled"]; exists && (en == true || fmt.Sprintf("%v", en) == "true") {
+					if mapBool(tlsMap, "enabled") {
 						tlsEnabled = true
 					}
-					if cert, exists := tlsMap["cert_file"]; exists && cert != nil {
-						tlsCert = fmt.Sprintf("%v", cert)
-					}
-					if key, exists := tlsMap["key_file"]; exists && key != nil {
-						tlsKey = fmt.Sprintf("%v", key)
-					}
-					if ca, exists := tlsMap["ca_file"]; exists && ca != nil {
-						tlsCA = fmt.Sprintf("%v", ca)
-					}
-					if ver, exists := tlsMap["verify"]; exists && (ver == true || fmt.Sprintf("%v", ver) == "true") {
+					tlsCert = mapString(tlsMap, "cert_file")
+					tlsKey = mapString(tlsMap, "key_file")
+					tlsCA = mapString(tlsMap, "ca_file")
+					if mapBool(tlsMap, "verify") {
 						tlsVerify = true
 					}
 				}
@@ -275,8 +268,8 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 		if svc.Name == "rag-dashboard" {
 			if capMap, ok := cfg.Capabilities["rag_engine"].(map[string]interface{}); ok {
 				if dash, ok := capMap["dashboard"].(map[string]interface{}); ok {
-					if port, exists := dash["port"]; exists {
-						svc.Port = fmt.Sprintf("%v", port)
+					if port := mapString(dash, "port"); port != "" {
+						svc.Port = port
 					}
 				}
 			}
@@ -289,13 +282,8 @@ func resolveServiceAddr(cfg *config.AppConfig, capName string, defaultIP, defaul
 	if capName == "rag_engine" && defaultPort == "8090" {
 		if capMap, ok := cfg.Capabilities["rag_engine"].(map[string]interface{}); ok {
 			if mcp, ok := capMap["mcp"].(map[string]interface{}); ok {
-				var resIP, resPort string
-				if ip, exists := mcp["ip"]; exists {
-					resIP = fmt.Sprintf("%v", ip)
-				}
-				if port, exists := mcp["port"]; exists {
-					resPort = fmt.Sprintf("%v", port)
-				}
+				resIP := mapString(mcp, "ip")
+				resPort := mapString(mcp, "port")
 				if resIP != "" && resPort != "" {
 					return resIP, resPort
 				}
@@ -353,4 +341,24 @@ func ValidateRegistry() error {
 		}
 	}
 	return nil
+}
+
+func mapString(m map[string]interface{}, key string) string {
+	if v, ok := m[key]; ok && v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+		return fmt.Sprintf("%v", v)
+	}
+	return ""
+}
+
+func mapBool(m map[string]interface{}, key string) bool {
+	if v, ok := m[key]; ok && v != nil {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+		return v == "true"
+	}
+	return false
 }

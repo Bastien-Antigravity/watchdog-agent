@@ -134,6 +134,7 @@ func (h *RESTHandler) handleRestartService(w http.ResponseWriter, r *http.Reques
 
 	err := h.control.RestartService(r.Context(), req.Name)
 	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		h.sendJSON(w, httpControlResponse{
 			Success:   false,
 			Message:   fmt.Sprintf("Failed to restart service: %v", err),
@@ -157,6 +158,7 @@ func (h *RESTHandler) handleRestartAll(w http.ResponseWriter, r *http.Request) {
 
 	err := h.control.RestartAll(r.Context())
 	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		h.sendJSON(w, httpControlResponse{
 			Success:   false,
 			Message:   fmt.Sprintf("Failed to restart all services: %v", err),

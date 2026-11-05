@@ -327,17 +327,21 @@ func MonitorAndSupervise(svc *Service, baseEnv []string, localIPs map[string]boo
 
 		LogInfo(svc.Name, "Process started with PID %d", cmd.Process.Pid)
 
-		// Pipe outputs in goroutines
-		go PipeOutput(svc.Name, svc.LogColor, stdoutPipe)
-		go PipeOutput(svc.Name, svc.LogColor, stderrPipe)
-
-		// Block until process exits
-		waitDone := make(chan error, 1)
+		// Pipe outputs in goroutines with WaitGroup to prevent truncated crash logs [WD-02]
+		var pipeWg sync.WaitGroup
+		pipeWg.Add(2)
 		go func() {
-			waitDone <- cmd.Wait()
+			defer pipeWg.Done()
+			PipeOutput(svc.Name, svc.LogColor, stdoutPipe)
+		}()
+		go func() {
+			defer pipeWg.Done()
+			PipeOutput(svc.Name, svc.LogColor, stderrPipe)
 		}()
 
-		err = <-waitDone
+		// Block until process exits
+		err = cmd.Wait()
+		pipeWg.Wait()
 		UnregisterCmd(cmd)
 
 		svc.Mu.Lock()

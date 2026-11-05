@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Bastien-Antigravity/watchdog-agent/src/supervisor"
 )
@@ -85,7 +86,7 @@ func HealSymlinks(rootDir string) error {
 		{"watchdog-agent/standalone.yaml", "../" + baseConfigPath},
 		{"web-interface/standalone.yaml", "../" + baseConfigPath},
 		{"web-interface/cmd/web-interface/standalone.yaml", "../../../" + baseConfigPath},
-		{"web-interface/bin/standalone.yaml", "../../../" + baseConfigPath},
+		{"web-interface/bin/standalone.yaml", "../../" + baseConfigPath},
 		{"docker-deployment/modes/local/inventory.json", "../../../obsidian-brain/05-Fleet-Operation/00-Repo-Control/inventory.json"},
 		{"docker-deployment/modes/docker/inventory.json", "../../../obsidian-brain/05-Fleet-Operation/00-Repo-Control/inventory.json"},
 		{"docker-deployment/modes/production/inventory.json", "../../../obsidian-brain/05-Fleet-Operation/00-Repo-Control/inventory.json"},
@@ -153,14 +154,19 @@ func safeLinkOrCopy(targetRel, destAbs, rootDir string) error {
 	sourceAbs := filepath.Join(filepath.Dir(destAbs), targetRel)
 	data, err := os.ReadFile(sourceAbs)
 	if err != nil {
-		sourceAbs = filepath.Join(rootDir, "docker-deployment", "modes", "local", "config", "native.yaml")
-		data, err = os.ReadFile(sourceAbs)
-		if err != nil {
-			sourceAbs = filepath.Join(rootDir, "modes", "local", "config", "native.yaml")
+		// Only fallback to native.yaml for YAML targets, not JSON or other files [WD-03]
+		if strings.HasSuffix(destAbs, ".yaml") || strings.HasSuffix(destAbs, ".yml") {
+			sourceAbs = filepath.Join(rootDir, "docker-deployment", "modes", "local", "config", "native.yaml")
 			data, err = os.ReadFile(sourceAbs)
 			if err != nil {
-				return fmt.Errorf("failed to read source config for copy fallback: %w", err)
+				sourceAbs = filepath.Join(rootDir, "modes", "local", "config", "native.yaml")
+				data, err = os.ReadFile(sourceAbs)
+				if err != nil {
+					return fmt.Errorf("failed to read source config for copy fallback: %w", err)
+				}
 			}
+		} else {
+			return fmt.Errorf("failed to read source file %s: %w", sourceAbs, err)
 		}
 	}
 	return os.WriteFile(destAbs, data, 0644)
