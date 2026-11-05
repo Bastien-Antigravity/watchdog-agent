@@ -57,11 +57,7 @@ func NewController(postgresAddr, ragMcpAddr string) *Controller {
 // GetStatus retrieves the status metadata of all supervised services
 func (c *Controller) GetStatus(ctx context.Context) (core.WatchdogStatusInfo, error) {
 	var statuses []core.ServiceStatus
-	hasTimescale := false
 	for _, svc := range supervisor.Services {
-		if svc.Name == "timescale-db" {
-			hasTimescale = true
-		}
 		svc.Mu.Lock()
 		pid := 0
 		if svc.Running && svc.Cmd != nil && svc.Cmd.Process != nil {
@@ -78,16 +74,6 @@ func (c *Controller) GetStatus(ctx context.Context) (core.WatchdogStatusInfo, er
 
 	pgConnected := supervisor.IsPortListening(c.postgresAddr, 500*time.Millisecond)
 	mcpConnected := supervisor.IsPortListening(c.ragMcpAddr, 500*time.Millisecond)
-
-	// Append external/virtual status entries if not already managed as a supervisor service [WD-05]
-	if !hasTimescale {
-		statuses = append(statuses, core.ServiceStatus{
-			Name:    "timescale-db",
-			Running: pgConnected,
-			PID:     0,
-			Deps:    []string{},
-		})
-	}
 
 	statuses = append(statuses, core.ServiceStatus{
 		Name:    "rag-mcp",
