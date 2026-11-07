@@ -20,7 +20,8 @@ COPY . .
 
 # Ensure dependencies are tidy and build binary
 RUN go mod tidy && \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /watchdog-agent-bin ./main.go
+    VERSION=$(cat VERSION.txt 2>/dev/null || echo "0.0.1") && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X 'github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/version.BuildVersion=${VERSION}'" -o /watchdog-agent-bin ./main.go
 
 # === RUNTIME STAGE ===
 FROM alpine:3.20
@@ -30,8 +31,9 @@ RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /watchdog-agent
 
-# Copy binary from builder stage
+# Copy binary and VERSION.txt from builder stage
 COPY --from=builder /watchdog-agent-bin /watchdog-agent/watchdog-agent
+COPY --from=builder /workspace/watchdog-agent/VERSION.txt /watchdog-agent/VERSION.txt
 
 # Set the entrypoint
 ENTRYPOINT ["/watchdog-agent/watchdog-agent"]
