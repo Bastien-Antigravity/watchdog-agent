@@ -5,6 +5,7 @@ go 1.25.8
 require (
 	github.com/Bastien-Antigravity/microservice-toolbox v0.0.1
 	github.com/Bastien-Antigravity/universal-logger v0.0.1
+	github.com/lib/pq v1.11.2
 	github.com/nats-io/nats.go v1.52.0
 )
 

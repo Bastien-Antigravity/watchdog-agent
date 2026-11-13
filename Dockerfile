@@ -18,16 +18,16 @@ RUN git clone --depth 1 -b develop https://github.com/Bastien-Antigravity/micros
 WORKDIR /workspace/watchdog-agent
 COPY . .
 
-# Ensure dependencies are tidy and build binary
+# Ensure dependencies are tidy and build binary (fail fast if VERSION.txt missing)
 RUN go mod tidy && \
-    VERSION=$(cat VERSION.txt 2>/dev/null || echo "0.0.1") && \
+    VERSION=$(cat VERSION.txt) && \
     CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X 'github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/version.BuildVersion=${VERSION}'" -o /watchdog-agent-bin ./main.go
 
 # === RUNTIME STAGE ===
 FROM alpine:3.20
 
 # Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata && mkdir -p /watchdog-agent/state
 
 WORKDIR /watchdog-agent
 

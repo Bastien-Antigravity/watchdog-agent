@@ -24,6 +24,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"time"
 
 	"github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/utils"
@@ -167,8 +169,64 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 		},
 	}
 
-	// Filter and initialize addresses for services
+	// Default circuit breaker & restart delays
+	defaultMaxCrashes := 3
+	defaultCrashWindow := 30 * time.Second
+	defaultRestartDelay := 3 * time.Second
+
+	var cbOverrides map[string]interface{}
+	if capMap, ok := cfg.Capabilities["watchdog_agent"].(map[string]interface{}); ok {
+		if cb, ok := capMap["circuit_breaker"].(map[string]interface{}); ok {
+			if mc := mapInt(cb, "max_crashes"); mc > 0 {
+				defaultMaxCrashes = mc
+			}
+			if cw := mapInt(cb, "crash_window_sec"); cw > 0 {
+				defaultCrashWindow = time.Duration(cw) * time.Second
+			}
+			if rd := mapInt(cb, "restart_delay_sec"); rd > 0 {
+				defaultRestartDelay = time.Duration(rd) * time.Second
+			}
+			if svcs, ok := cb["services"].(map[string]interface{}); ok {
+				cbOverrides = svcs
+			}
+		}
+	}
+
+	// Filter and initialize addresses and supervision parameters for services
 	for _, svc := range Services {
+		svc.MaxCrashes = defaultMaxCrashes
+		svc.CrashWindow = defaultCrashWindow
+		svc.RestartDelay = defaultRestartDelay
+
+		// Apply per-service overrides if configured (e.g. tele_remote vs rag_engine)
+		normName := strings.ReplaceAll(svc.Name, "-", "_")
+		if cbOverrides != nil {
+			var svcMap map[string]interface{}
+			if sm, ok := cbOverrides[svc.Name].(map[string]interface{}); ok {
+				svcMap = sm
+			} else if sm, ok := cbOverrides[normName].(map[string]interface{}); ok {
+				svcMap = sm
+			}
+			if svcMap != nil {
+				if mc := mapInt(svcMap, "max_crashes"); mc > 0 {
+					svc.MaxCrashes = mc
+				}
+				if cw := mapInt(svcMap, "crash_window_sec"); cw > 0 {
+					svc.CrashWindow = time.Duration(cw) * time.Second
+				}
+				if rd := mapInt(svcMap, "restart_delay_sec"); rd > 0 {
+					svc.RestartDelay = time.Duration(rd) * time.Second
+				}
+			}
+		} else {
+			// Built-in intelligent defaults if not explicitly overridden:
+			if svc.Name == "tele-remote" {
+				svc.RestartDelay = 5 * time.Second
+			} else if svc.Name == "rag-engine" {
+				svc.RestartDelay = 2 * time.Second
+			}
+		}
+
 		var defaultPort string
 		switch svc.Name {
 		case "timescale-db":
@@ -361,4 +419,23 @@ func mapBool(m map[string]interface{}, key string) bool {
 		return v == "true"
 	}
 	return false
+}
+
+func mapInt(m map[string]interface{}, key string) int {
+	if v, ok := m[key]; ok && v != nil {
+		switch n := v.(type) {
+		case int:
+			return n
+		case int64:
+			return int(n)
+		case float64:
+			return int(n)
+		case string:
+			var res int
+			if _, err := fmt.Sscanf(n, "%d", &res); err == nil {
+				return res
+			}
+		}
+	}
+	return 0
 }

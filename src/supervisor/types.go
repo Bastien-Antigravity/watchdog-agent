@@ -18,6 +18,7 @@ package supervisor
 import (
 	"os/exec"
 	"sync"
+	"time"
 
 	unilog_ifaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
@@ -45,18 +46,24 @@ const (
 
 // Service represents a managed service configurations
 type Service struct {
-	Name      string
-	CapName   string
-	Path      string
-	BuildCmd  string
-	BuildArgs []string
-	RunCmd    string
-	RunArgs   []string
-	Deps      []string
-	IP        string
-	Port      string
-	LogColor  string
-	Cmd       *exec.Cmd
-	Running   bool
-	Mu        sync.Mutex
+	Name         string
+	CapName      string
+	Path         string
+	BuildCmd     string
+	BuildArgs    []string
+	RunCmd       string
+	RunArgs      []string
+	Deps         []string
+	IP           string
+	Port         string
+	LogColor     string
+	Cmd          *exec.Cmd
+	Running      bool
+	Paused       bool          // when true, supervisor loop does not auto-restart process
+	InCrashLoop  bool          // true if tripped by circuit breaker
+	CrashTimes   []time.Time   // history of recent crash timestamps
+	MaxCrashes   int           // crash threshold count (default 3)
+	CrashWindow  time.Duration // window for crash counting (default 30s)
+	RestartDelay time.Duration // delay before restarting (default 3s)
+	Mu           sync.Mutex
 }

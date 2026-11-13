@@ -24,6 +24,7 @@ graph TD
     Launcher -->|2. Config Resolve| Config[AppConfig Capabilities]
     Launcher -->|3. Run Loop| Supervisor[Supervisory Threadpool]
     Launcher -->|4. Web Server| Server[REST API & embedded OpenMFE]
+    Launcher -->|5. Error Shipper| Shipper[Autonomous Fleet Log Shipper]
 
     subgraph "Process Monitoring"
         Supervisor -->|Validate Topo| GraphCheck[Graph Deadlock/Cycle DFS]
@@ -32,6 +33,13 @@ graph TD
         DepCheck -->|Healthy| Compile[Go / Cargo Compilation]
         Compile -->|Build OK| Exec[cmd.Start Subprocess]
         Exec -->|Pipe Logs| Logs[Prefix Logger]
+    end
+
+    subgraph "Autonomous Error Log Shipper"
+        Shipper -->|Tail files| Tailer[Multi-File Tailer & Inode/Size Check]
+        Tailer -->|Filter level >= ERROR| Parser[8-Column Zero-Alloc Parser]
+        Parser -->|Atomic Batch Tx| DBHypertable[TimescaleDB fleet_error_logs]
+        Shipper -->|Commit Offsets| CheckpointStore[.shipper_offsets.json]
     end
 
     subgraph "External Telemetry"
@@ -55,6 +63,7 @@ watchdog-agent/
     ├── core/          # Telemetry status struct definitions
     ├── rest/          # HTTP REST endpoints, cache headers, and OpenMFE dashboard
     ├── server/        # Controller implementation (live pings and status aggregation)
+    ├── shipper/       # Autonomous error log tailer, zero-allocation parser, and TimescaleDB hypertable sink
     ├── supervisor/    # Supervisory loops, topological checks, and database launcher
     └── utils/         # Cross-platform single instance locks and group process killers
 ```

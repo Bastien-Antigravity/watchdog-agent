@@ -64,10 +64,13 @@ func (c *Controller) GetStatus(ctx context.Context) (core.WatchdogStatusInfo, er
 			pid = svc.Cmd.Process.Pid
 		}
 		statuses = append(statuses, core.ServiceStatus{
-			Name:    svc.Name,
-			Running: svc.Running,
-			PID:     pid,
-			Deps:    svc.Deps,
+			Name:        svc.Name,
+			Running:     svc.Running,
+			Paused:      svc.Paused,
+			InCrashLoop: svc.InCrashLoop,
+			CrashCount:  len(svc.CrashTimes),
+			PID:         pid,
+			Deps:        svc.Deps,
 		})
 		svc.Mu.Unlock()
 	}
@@ -76,10 +79,12 @@ func (c *Controller) GetStatus(ctx context.Context) (core.WatchdogStatusInfo, er
 	mcpConnected := supervisor.IsPortListening(c.ragMcpAddr, 500*time.Millisecond)
 
 	statuses = append(statuses, core.ServiceStatus{
-		Name:    "rag-mcp",
-		Running: mcpConnected,
-		PID:     0,
-		Deps:    []string{},
+		Name:        "rag-mcp",
+		Running:     mcpConnected,
+		Paused:      false,
+		InCrashLoop: false,
+		PID:         0,
+		Deps:        []string{},
 	})
 
 	return core.WatchdogStatusInfo{
@@ -124,5 +129,54 @@ func (c *Controller) RestartService(ctx context.Context, name string) error {
 func (c *Controller) RestartAll(ctx context.Context) error {
 	supervisor.LogInfo("watchdog", "Request to restart all managed services...")
 	supervisor.KillAll()
+	return nil
+}
+
+// PauseService suspends auto-restart supervision for a service and terminates any running process
+func (c *Controller) PauseService(ctx context.Context, name string) error {
+	targetName := name
+	if name == "rag-mcp" {
+		targetName = "rag-engine"
+	}
+
+	svc := supervisor.FindServiceByName(targetName)
+	if svc == nil {
+		return fmt.Errorf("service not found: %s", name)
+	}
+
+	svc.Mu.Lock()
+	defer svc.Mu.Unlock()
+
+	svc.Paused = true
+	supervisor.LogInfo("watchdog", "Supervision for service '%s' paused by operator.", svc.Name)
+
+	if svc.Running && svc.Cmd != nil && svc.Cmd.Process != nil {
+		supervisor.LogInfo("watchdog", "Terminating active process group for paused service '%s' (PID %d)...", svc.Name, svc.Cmd.Process.Pid)
+		utils.KillProcessGroupByID(svc.Cmd.Process.Pid)
+	}
+
+	return nil
+}
+
+// ResumeService re-enables supervision for a service, clears crash history, and allows supervisor to relaunch
+func (c *Controller) ResumeService(ctx context.Context, name string) error {
+	targetName := name
+	if name == "rag-mcp" {
+		targetName = "rag-engine"
+	}
+
+	svc := supervisor.FindServiceByName(targetName)
+	if svc == nil {
+		return fmt.Errorf("service not found: %s", name)
+	}
+
+	svc.Mu.Lock()
+	defer svc.Mu.Unlock()
+
+	svc.Paused = false
+	svc.InCrashLoop = false
+	svc.CrashTimes = nil
+	supervisor.LogInfo("watchdog", "Supervision for service '%s' resumed by operator.", svc.Name)
+
 	return nil
 }

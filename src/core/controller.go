@@ -21,10 +21,13 @@ import "context"
 
 // ServiceStatus represents the current status of a managed process
 type ServiceStatus struct {
-	Name    string   `json:"name"`
-	Running bool     `json:"running"`
-	PID     int      `json:"pid,omitempty"`
-	Deps    []string `json:"deps"`
+	Name        string   `json:"name"`
+	Running     bool     `json:"running"`
+	Paused      bool     `json:"paused"`
+	InCrashLoop bool     `json:"in_crash_loop,omitempty"`
+	CrashCount  int      `json:"crash_count,omitempty"`
+	PID         int      `json:"pid,omitempty"`
+	Deps        []string `json:"deps"`
 }
 
 // WatchdogStatusInfo represents the overall watchdog telemetry
@@ -46,4 +49,6 @@ type WatchdogController interface {
 	GetStatus(ctx context.Context) (WatchdogStatusInfo, error)
 	RestartService(ctx context.Context, name string) error
 	RestartAll(ctx context.Context) error
+	PauseService(ctx context.Context, name string) error
+	ResumeService(ctx context.Context, name string) error
 }

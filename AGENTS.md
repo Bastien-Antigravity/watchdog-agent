@@ -29,6 +29,7 @@ go test -v ./...
 5. **Section Dividers**: Use `// -----------------------------------------------------------------------------` between exported methods and major sections.
 6. **L1 Resilience, Connectivity & Infinite Retry Contract**:
    - OpenMFE registration to `web-interface` must run in a non-blocking background goroutine with infinite retries (`MaxRetries: -1`), exponential backoff, and dynamic address resolution via `cfg.GetListenAddr("web_interface")`.
+   - `OpenMFE & Exchange Contracts`: Exposes `GET /api/v1/contracts` (REST, NATS control subjects, TimescaleDB `fleet_error_logs` SQL DDL, and client probes), publishes `ServiceSpec.Contracts`, and mounts dynamic tabs in `#watchdog-tabs-bar` (`src/rest/mfe.js`).
    - NATS control plane connection must retry with exponential backoff on startup until the broker is online; it must never permanently abort on initial connection failure.
 7. **Dynamic NATS Process Supervision & Zero-Conf Launch**:
    - `nats-server` process launch is driven entirely by dynamic CLI arguments constructed from `capabilities.nats` in configuration (`-js`, `-sd <store_dir>`, `-p <port>`, `-a <ip>`, `-m <http_port>`, `-n <server_name>`).

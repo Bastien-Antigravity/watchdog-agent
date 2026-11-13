@@ -34,9 +34,10 @@ import (
 // -----------------------------------------------------------------------------
 
 var (
-	activeCmds   []*exec.Cmd
-	activeCmdsMu sync.Mutex
-	Services     []*Service
+	activeCmds              []*exec.Cmd
+	activeCmdsMu            sync.Mutex
+	Services                []*Service
+	OnCircuitBreakerTripped func(svc *Service, crashCount int, window time.Duration)
 )
 
 // -----------------------------------------------------------------------------
@@ -154,6 +155,15 @@ func IsPortListening(addr string, timeout time.Duration) bool {
 // MonitorAndSupervise is the supervisor runner loop
 func MonitorAndSupervise(svc *Service, baseEnv []string, localIPs map[string]bool) {
 	for {
+		// 0. Check if supervision is paused by operator or circuit breaker
+		svc.Mu.Lock()
+		if svc.Paused {
+			svc.Mu.Unlock()
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		svc.Mu.Unlock()
+
 		// 1. Wait for dependencies to be healthy
 		for _, depName := range svc.Deps {
 			depSvc := FindServiceByName(depName)
@@ -165,6 +175,13 @@ func MonitorAndSupervise(svc *Service, baseEnv []string, localIPs map[string]boo
 			LogInfo(svc.Name, "Waiting for dependency '%s' on %s...", depName, depAddr)
 			lastLogTime := time.Now()
 			for {
+				svc.Mu.Lock()
+				isPaused := svc.Paused
+				svc.Mu.Unlock()
+				if isPaused {
+					break
+				}
+
 				if IsPortListening(depAddr, 500*time.Millisecond) {
 					break
 				}
@@ -174,8 +191,21 @@ func MonitorAndSupervise(svc *Service, baseEnv []string, localIPs map[string]boo
 				}
 				time.Sleep(1 * time.Second)
 			}
+			svc.Mu.Lock()
+			isPaused := svc.Paused
+			svc.Mu.Unlock()
+			if isPaused {
+				break
+			}
 			LogInfo(svc.Name, "Dependency '%s' is ready.", depName)
 		}
+
+		svc.Mu.Lock()
+		if svc.Paused {
+			svc.Mu.Unlock()
+			continue
+		}
+		svc.Mu.Unlock()
 
 		// Special handling for NATS event bus / infrastructure service:
 		if svc.Name == "nats-server" {
@@ -347,10 +377,61 @@ func MonitorAndSupervise(svc *Service, baseEnv []string, localIPs map[string]boo
 		svc.Mu.Lock()
 		svc.Running = false
 		svc.Cmd = nil
+		wasPaused := svc.Paused
+		maxCrashes := svc.MaxCrashes
+		if maxCrashes <= 0 {
+			maxCrashes = 3
+		}
+		crashWindow := svc.CrashWindow
+		if crashWindow <= 0 {
+			crashWindow = 30 * time.Second
+		}
+		restartDelay := svc.RestartDelay
+		if restartDelay <= 0 {
+			restartDelay = 3 * time.Second
+		}
 
+		if wasPaused {
+			svc.Mu.Unlock()
+			LogInfo(svc.Name, "Process exited while supervision is paused. Auto-restart suspended.")
+			continue
+		}
+
+		// Evaluate crash loop circuit breaker
+		now := time.Now()
+		svc.CrashTimes = append(svc.CrashTimes, now)
+
+		// Prune crashes older than the sliding window
+		cutoff := now.Add(-crashWindow)
+		var recentCrashes []time.Time
+		for _, t := range svc.CrashTimes {
+			if t.After(cutoff) {
+				recentCrashes = append(recentCrashes, t)
+			}
+		}
+		svc.CrashTimes = recentCrashes
+		crashCount := len(recentCrashes)
+
+		var tripped bool
+		if crashCount >= maxCrashes {
+			svc.Paused = true
+			svc.InCrashLoop = true
+			tripped = true
+		}
 		svc.Mu.Unlock()
 
-		LogError(svc.Name, "Process exited: %v. Restarting in 3 seconds...", err)
-		time.Sleep(3 * time.Second)
+		if tripped {
+			LogError(svc.Name, "🚨 CRASH LOOP DETECTED: Process exited (%v) - %d crashes in %v (threshold: %d)! Circuit breaker tripped to PAUSED (CrashLoopBackoff). Supervision suspended.", err, crashCount, crashWindow, maxCrashes)
+			if Logger != nil {
+				Logger.Critical("Supervisor: Service '%s' tripped circuit breaker (%d crashes in %v). Supervision PAUSED.", svc.Name, crashCount, crashWindow)
+			}
+			if OnCircuitBreakerTripped != nil {
+				go OnCircuitBreakerTripped(svc, crashCount, crashWindow)
+			}
+			continue
+		}
+
+		LogError(svc.Name, "Process exited: %v (crash %d/%d in %v). Restarting in %v...", err, crashCount, maxCrashes, crashWindow, restartDelay)
+		time.Sleep(restartDelay)
 	}
 }

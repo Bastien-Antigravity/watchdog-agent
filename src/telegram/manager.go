@@ -21,8 +21,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Bastien-Antigravity/watchdog-agent/src/core"
+	"github.com/Bastien-Antigravity/watchdog-agent/src/supervisor"
 
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	toolbox_lifecycle "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/lifecycle"
@@ -71,7 +73,13 @@ func (m *MenuManager) RebuildMenu() {
 			sb.WriteString(fmt.Sprintf("🤖 Watchdog Agent (Uptime: %ds)\n\n", currentStatus.UptimeSeconds))
 			for _, svc := range currentStatus.Services {
 				state := "🔴 OFFLINE"
-				if svc.Running {
+				if svc.Paused {
+					if svc.InCrashLoop {
+						state = "🚨 CRASH LOOP (PAUSED)"
+					} else {
+						state = "⏸️ PAUSED"
+					}
+				} else if svc.Running {
 					state = fmt.Sprintf("🟢 RUNNING (PID %d)", svc.PID)
 				}
 				sb.WriteString(fmt.Sprintf("• *%s*: %s\n", svc.Name, state))
@@ -103,7 +111,48 @@ func (m *MenuManager) RebuildMenu() {
 		SubMenu: restartServiceActions,
 	})
 
-	// 3. Restart All
+	// 3. Pause / Resume Supervision submenu
+	var supervisionActions []toolbox_teleclient.Action
+	for _, svc := range status.Services {
+		if svc.Name == "rag-mcp" {
+			continue // virtual service
+		}
+		name := svc.Name
+		isPaused := svc.Paused
+		if isPaused {
+			supervisionActions = append(supervisionActions, toolbox_teleclient.Action{
+				Label: fmt.Sprintf("▶️ Resume %s", name),
+				Callback: func(input string) error {
+					m.logger.Info("Telegram trigger: resuming service '%s'...", name)
+					err := m.controller.ResumeService(context.Background(), name)
+					if err != nil {
+						return err
+					}
+					m.RebuildMenu()
+					return nil
+				},
+			})
+		} else {
+			supervisionActions = append(supervisionActions, toolbox_teleclient.Action{
+				Label: fmt.Sprintf("⏸️ Pause %s", name),
+				Callback: func(input string) error {
+					m.logger.Info("Telegram trigger: pausing service '%s'...", name)
+					err := m.controller.PauseService(context.Background(), name)
+					if err != nil {
+						return err
+					}
+					m.RebuildMenu()
+					return nil
+				},
+			})
+		}
+	}
+	actions = append(actions, toolbox_teleclient.Action{
+		Label:   "⏸️ Pause / Resume",
+		SubMenu: supervisionActions,
+	})
+
+	// 4. Restart All
 	actions = append(actions, toolbox_teleclient.Action{
 		Label: "⚠️ Restart All Services",
 		Callback: func(input string) error {
@@ -143,6 +192,12 @@ func SetupTelegram(appConfig *toolbox_config.AppConfig, controller core.Watchdog
 
 	teleClient := toolbox_teleclient.NewTeleClient("Watchdog Agent", ip, port, logger)
 	mgr := NewMenuManager(teleClient, controller, logger)
+
+	// Hook supervisor circuit breaker alerts to Telegram
+	supervisor.OnCircuitBreakerTripped = func(svc *supervisor.Service, crashCount int, window time.Duration) {
+		mgr.RebuildMenu()
+		_ = teleClient.SendTelemetry(fmt.Sprintf("🚨 *CRITICAL ALERT*: Service *%s* crashed %d times within %v!\nSupervisor tripped circuit breaker to *PAUSED (CrashLoopBackoff)*.\nUse Telegram menu or Web UI to inspect and resume.", svc.Name, crashCount, window))
+	}
 
 	// Initial menu build
 	mgr.RebuildMenu()

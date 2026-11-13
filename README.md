@@ -18,6 +18,7 @@ The `watchdog-agent` is a modular, cross-platform Go-based supervisor that coord
 - **Auto-Boot & Remote DB Launch**: Supports triggering cross-platform database startups (Docker, macOS Brew, Linux systemd, Windows Services) both automatically at boot and on-demand from the web UI.
 - **OpenMFE Web Dashboard**: Serves a dynamic loader script with integrated cache-busting and client-side reload headers.
 - **Single-Instance Locking**: Obtains a secure file lock on `.watchdog-agent.lock` using Unix `Flock` or Windows exclusive `CreateFile` calls.
+- **Autonomous Fleet Error Log Shipper**: Background tailer that autonomously discovers microservice log files across Docker volumes (`/var/log/fleet`) and native workspaces (`*/logs/*.log`), parses standard 8-column log lines with zero heap allocations, filters entries with severity `level >= ERROR`, and ingests them in batch transactions into the TimescaleDB `fleet_error_logs` hypertable. Maintains checkpoint persistence in `.shipper_offsets.json` with file truncation/rotation detection and offset-freeze resilience during database downtime.
 
 ## 📖 Documentation
 
@@ -39,6 +40,18 @@ Flags:
 
 - `--profile`: Configuration profile to load (default: `standalone`).
 - `--build`: If `true`, builds the binaries (e.g., `cargo build`, `go build`) before running them.
+- `--mode`: Operational mode: `all` (default native), `supervisor` (process manager only), `shipper` (error log shipper only), `telemetry` (REST/MFE only). Defaults to `shipper` inside Docker containers (`DOCKER_ENV=true`).
+- `--supervise`: Boolean flag to enable process supervision and auto-restart loops (default `true` on native host, automatically `false` in Docker where Docker daemon manages container lifecycles).
+- `--shipper`: Boolean flag to enable the autonomous error log shipper to TimescaleDB (default `true`).
+- `--rest`: Boolean flag to enable the HTTP REST API and embedded OpenMFE dashboard (default `true` in native, `false` in standalone shipper mode).
+
+Environment Variable Overrides:
+
+- `WATCHDOG_MODE`: Set mode (`all`, `supervisor`, `shipper`, `telemetry`).
+- `WATCHDOG_SUPERVISE`: Explicitly toggle process supervision (`true`/`false`).
+- `WATCHDOG_SHIPPER`: Explicitly toggle log shipping (`true`/`false`).
+- `WATCHDOG_REST`: Explicitly toggle REST API (`true`/`false`).
+- `LOG_SCAN_DIRS`: Override log directory to scan (e.g., `/var/log/fleet`).
 
 ---
 

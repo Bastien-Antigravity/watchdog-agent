@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"time"
 
+	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	unilog_interfaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/core"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/supervisor"
@@ -36,8 +37,9 @@ var mfeJS string
 
 // RESTHandler handles HTTP management requests for watchdog
 type RESTHandler struct {
-	logger  unilog_interfaces.Logger
-	control core.WatchdogController
+	logger    unilog_interfaces.Logger
+	control   core.WatchdogController
+	appConfig *toolbox_config.AppConfig
 }
 
 // NewRESTHandler creates a new RESTHandler instance
@@ -48,11 +50,19 @@ func NewRESTHandler(control core.WatchdogController, logger unilog_interfaces.Lo
 	}
 }
 
+// SetAppConfig attaches the ecosystem AppConfig for live endpoint resolution in /api/v1/contracts.
+func (h *RESTHandler) SetAppConfig(cfg *toolbox_config.AppConfig) {
+	h.appConfig = cfg
+}
+
 // RegisterRoutes registers the REST routes to the provided mux
 func (h *RESTHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/status", h.handleStatus)
+	mux.HandleFunc("/api/v1/contracts", h.handleContracts)
 	mux.HandleFunc("/api/v1/watchdog/restart", h.handleRestartService)
 	mux.HandleFunc("/api/v1/watchdog/restart_all", h.handleRestartAll)
+	mux.HandleFunc("/api/v1/watchdog/pause", h.handlePauseService)
+	mux.HandleFunc("/api/v1/watchdog/resume", h.handleResumeService)
 	mux.HandleFunc("/api/v1/postgres/start", h.handleStartPostgres)
 
 	// Serve embedded static files (OpenMFE Web Component bundles) with cache-busting headers
@@ -170,6 +180,66 @@ func (h *RESTHandler) handleRestartAll(w http.ResponseWriter, r *http.Request) {
 	h.sendJSON(w, httpControlResponse{
 		Success:   true,
 		Message:   "Restart all services triggered successfully",
+		Timestamp: time.Now().Unix(),
+	})
+}
+
+func (h *RESTHandler) handlePauseService(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req httpRestartRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	err := h.control.PauseService(r.Context(), req.Name)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		h.sendJSON(w, httpControlResponse{
+			Success:   false,
+			Message:   fmt.Sprintf("Failed to pause service: %v", err),
+			Timestamp: time.Now().Unix(),
+		})
+		return
+	}
+
+	h.sendJSON(w, httpControlResponse{
+		Success:   true,
+		Message:   fmt.Sprintf("Supervision for service '%s' paused successfully", req.Name),
+		Timestamp: time.Now().Unix(),
+	})
+}
+
+func (h *RESTHandler) handleResumeService(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req httpRestartRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	err := h.control.ResumeService(r.Context(), req.Name)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		h.sendJSON(w, httpControlResponse{
+			Success:   false,
+			Message:   fmt.Sprintf("Failed to resume service: %v", err),
+			Timestamp: time.Now().Unix(),
+		})
+		return
+	}
+
+	h.sendJSON(w, httpControlResponse{
+		Success:   true,
+		Message:   fmt.Sprintf("Supervision for service '%s' resumed successfully", req.Name),
 		Timestamp: time.Now().Unix(),
 	})
 }

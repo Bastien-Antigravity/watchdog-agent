@@ -113,31 +113,42 @@ class WatchdogAgentMFE extends BaseElementClass {
                         </div>
                     </div>
                 </div>
-                
-                <!-- Services Table -->
-                <div class="openmfe-card" style="margin-top: var(--space-4, 16px);">
-                    <div class="openmfe-card__header">
-                        <h4 class="openmfe-card__title"><i class="fa fa-cogs"></i> Supervised Fleet Processes</h4>
-                    </div>
-                    <div class="openmfe-card__body" style="padding: 0; overflow-x: auto;">
-                        <table class="openmfe-table">
-                            <thead>
-                                <tr>
-                                    <th style="width:25%;">Service Name</th>
-                                    <th style="width:22%;">Status</th>
-                                    <th style="width:15%;">PID</th>
-                                    <th style="width:26%;">Dependencies</th>
-                                    <th style="width:12%; text-align:right;">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="mfe-services-list">
-                                <tr>
-                                    <td colspan="5" style="padding:40px; text-align:center; color:var(--color-text-muted, #94a3b8);">
-                                        <i class="fa fa-spinner fa-spin fa-2x"></i><br><br>Querying process registry...
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+
+                <!-- Sub-Navigation Tabs Bar (div[3]) -->
+                <div class="openmfe-tabs-bar" id="watchdog-tabs-bar" role="tablist">
+                    <button class="openmfe-tab-btn is-active" data-tab="operations" role="tab" type="button">
+                        <i class="fa fa-cogs"></i> Supervised Fleet
+                    </button>
+                </div>
+
+                <div id="watchdog-panels-host">
+                    <div class="openmfe-panel is-active" id="panel-operations">
+                        <!-- Services Table -->
+                        <div class="openmfe-card">
+                            <div class="openmfe-card__header">
+                                <h4 class="openmfe-card__title"><i class="fa fa-cogs"></i> Supervised Fleet Processes</h4>
+                            </div>
+                            <div class="openmfe-card__body" style="padding: 0; overflow-x: auto;">
+                                <table class="openmfe-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:25%;">Service Name</th>
+                                            <th style="width:22%;">Status</th>
+                                            <th style="width:15%;">PID</th>
+                                            <th style="width:26%;">Dependencies</th>
+                                            <th style="width:12%; text-align:right;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="mfe-services-list">
+                                        <tr>
+                                            <td colspan="5" style="padding:40px; text-align:center; color:var(--color-text-muted, #94a3b8);">
+                                                <i class="fa fa-spinner fa-spin fa-2x"></i><br><br>Querying process registry...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -153,21 +164,55 @@ class WatchdogAgentMFE extends BaseElementClass {
             statusDetails: this.querySelector('#mfe-status-details'),
             statsDetails: this.querySelector('#mfe-stats-details'),
             servicesList: this.querySelector('#mfe-services-list'),
-            btnRestartAll: this.querySelector('#mfe-restart-all-btn')
+            btnRestartAll: this.querySelector('#mfe-restart-all-btn'),
+            tabsBar: this.querySelector('#watchdog-tabs-bar'),
+            panelsHost: this.querySelector('#watchdog-panels-host')
         };
     }
 
+    switchTab(tabName) {
+        this.activeTab = tabName || 'operations';
+        this.querySelectorAll('#watchdog-tabs-bar .openmfe-tab-btn').forEach(btn => {
+            btn.classList.toggle('is-active', btn.getAttribute('data-tab') === this.activeTab);
+        });
+        this.querySelectorAll('#watchdog-panels-host > .openmfe-panel').forEach(panel => {
+            panel.classList.toggle('is-active', panel.id === `panel-${this.activeTab}`);
+        });
+    }
+
     bindEvents() {
+        this.querySelectorAll('#watchdog-tabs-bar .openmfe-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.switchTab(btn.getAttribute('data-tab')));
+        });
         this.dom.btnRestartAll?.addEventListener('click', () => this.restartAll());
     }
 
     async onMount() {
+        this.activeTab = this.activeTab || 'operations';
         await this.loadAll();
         this.registerPoll(() => this.loadStatus(), 5000, false);
     }
 
     async loadAll() {
-        await this.loadStatus();
+        await Promise.all([this.loadStatus(), this.loadContracts()]);
+    }
+
+    async loadContracts() {
+        const contractsApi = typeof window !== 'undefined' ? window.BastienMFEContracts : null;
+        if (!contractsApi || !this.dom.tabsBar || !this.dom.panelsHost) return;
+        const envelope = await contractsApi.fetchContracts({
+            primaryUrls: [`${this.baseUrl}/api/v1/contracts`],
+            serviceName: 'watchdog_agent'
+        });
+        contractsApi.mountContractTabs({
+            rootEl: this,
+            tabsBarEl: this.dom.tabsBar,
+            panelsHostEl: this.dom.panelsHost,
+            envelope,
+            activeTab: this.activeTab,
+            onSwitchTab: (tab) => this.switchTab(tab),
+            onRetry: () => this.loadContracts()
+        });
     }
 
     async loadStatus() {
@@ -274,7 +319,15 @@ class WatchdogAgentMFE extends BaseElementClass {
 
             let dotClass = 'openmfe-dot--inactive';
             let stateText = 'Stopped';
-            if (svc.running) {
+            if (svc.paused) {
+                if (svc.in_crash_loop) {
+                    dotClass = 'openmfe-dot--inactive';
+                    stateText = '🚨 CrashLoopBackoff (Paused)';
+                } else {
+                    dotClass = 'openmfe-dot--inactive';
+                    stateText = '⏸️ Paused';
+                }
+            } else if (svc.running) {
                 dotClass = 'openmfe-dot--active';
                 stateText = 'Running';
             } else if (svc.one_shot && svc.completed) {
@@ -301,9 +354,22 @@ class WatchdogAgentMFE extends BaseElementClass {
                     actionHTML = `<span style="color:var(--color-text-muted, #94a3b8); font-size:0.8125rem; font-style:italic;">External</span>`;
                 }
             } else {
-                actionHTML = `<button class="openmfe-btn openmfe-btn--sm openmfe-btn--outline mfe-restart-svc-btn" data-name="${this.escapeAttribute(svc.name)}">
-                        <i class="fa fa-refresh"></i> Restart
+                let pauseToggleHTML = '';
+                if (svc.paused) {
+                    pauseToggleHTML = `<button class="openmfe-btn openmfe-btn--sm openmfe-btn--success mfe-resume-svc-btn" data-name="${this.escapeAttribute(svc.name)}" title="Resume supervision">
+                        <i class="fa fa-play"></i> Resume
                     </button>`;
+                } else {
+                    pauseToggleHTML = `<button class="openmfe-btn openmfe-btn--sm openmfe-btn--warning mfe-pause-svc-btn" data-name="${this.escapeAttribute(svc.name)}" title="Pause supervision">
+                        <i class="fa fa-pause"></i> Pause
+                    </button>`;
+                }
+                actionHTML = `<div style="display:flex; gap:6px; justify-content:flex-end;">
+                        <button class="openmfe-btn openmfe-btn--sm openmfe-btn--outline mfe-restart-svc-btn" data-name="${this.escapeAttribute(svc.name)}">
+                            <i class="fa fa-refresh"></i> Restart
+                        </button>
+                        ${pauseToggleHTML}
+                    </div>`;
             }
 
             row.innerHTML = `
@@ -331,10 +397,71 @@ class WatchdogAgentMFE extends BaseElementClass {
                     const name = e.currentTarget.dataset.name;
                     this.restartService(name);
                 });
+                row.querySelector('.mfe-pause-svc-btn')?.addEventListener('click', (e) => {
+                    const name = e.currentTarget.dataset.name;
+                    this.pauseService(name);
+                });
+                row.querySelector('.mfe-resume-svc-btn')?.addEventListener('click', (e) => {
+                    const name = e.currentTarget.dataset.name;
+                    this.resumeService(name);
+                });
             }
 
             this.dom.servicesList.appendChild(row);
         });
+    }
+
+    async pauseService(name) {
+        if (!confirm(`Are you sure you want to pause supervision for service '${name}'? The process will be stopped and auto-restart will be suspended.`)) return;
+        try {
+            let url = `${this.baseUrl}/api/v1/watchdog/pause`;
+            let res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            }).catch(() => null);
+            if ((!res || !res.ok) && typeof window !== 'undefined' && this.baseUrl !== window.location.origin) {
+                res = await fetch(`${window.location.origin}/api/v1/watchdog/pause`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                }).catch(() => null);
+            }
+            if (res && res.ok) {
+                await this.loadStatus();
+            } else {
+                const text = res ? await res.text() : 'Network error';
+                alert(`Error pausing service: ${text}`);
+            }
+        } catch (err) {
+            alert(`Failed to pause service: ${err.message}`);
+        }
+    }
+
+    async resumeService(name) {
+        try {
+            let url = `${this.baseUrl}/api/v1/watchdog/resume`;
+            let res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            }).catch(() => null);
+            if ((!res || !res.ok) && typeof window !== 'undefined' && this.baseUrl !== window.location.origin) {
+                res = await fetch(`${window.location.origin}/api/v1/watchdog/resume`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                }).catch(() => null);
+            }
+            if (res && res.ok) {
+                await this.loadStatus();
+            } else {
+                const text = res ? await res.text() : 'Network error';
+                alert(`Error resuming service: ${text}`);
+            }
+        } catch (err) {
+            alert(`Failed to resume service: ${err.message}`);
+        }
     }
 
     async startPostgres() {
