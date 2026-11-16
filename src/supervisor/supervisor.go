@@ -171,9 +171,11 @@ func MonitorAndSupervise(svc *Service, baseEnv []string, localIPs map[string]boo
 				continue
 			}
 
-			depAddr := net.JoinHostPort(depSvc.IP, depSvc.Port)
+			depIP, depPort := depSvc.ResolveAddr()
+			depAddr := net.JoinHostPort(depIP, depPort)
 			LogInfo(svc.Name, "Waiting for dependency '%s' on %s...", depName, depAddr)
 			lastLogTime := time.Now()
+			waited := false
 			for {
 				svc.Mu.Lock()
 				isPaused := svc.Paused
@@ -182,9 +184,16 @@ func MonitorAndSupervise(svc *Service, baseEnv []string, localIPs map[string]boo
 					break
 				}
 
+				depIP, depPort = depSvc.ResolveAddr()
+				depAddr = net.JoinHostPort(depIP, depPort)
 				if IsPortListening(depAddr, 500*time.Millisecond) {
+					if waited {
+						// Brief settling delay on initial cold boot to let runtime initialize after port opens
+						time.Sleep(200 * time.Millisecond)
+					}
 					break
 				}
+				waited = true
 				if time.Since(lastLogTime) >= 10*time.Second {
 					LogInfo(svc.Name, "Still waiting for dependency '%s' on %s...", depName, depAddr)
 					lastLogTime = time.Now()
@@ -295,26 +304,27 @@ func MonitorAndSupervise(svc *Service, baseEnv []string, localIPs map[string]boo
 		}
 
 		// 2. Clear port just in case it is occupied by an orphaned instance
-		if svc.Port != "" {
-			checkHost := svc.IP
+		liveIP, livePort := svc.ResolveAddr()
+		if livePort != "" {
+			checkHost := liveIP
 			if checkHost == "" {
 				checkHost = "127.0.0.1"
 			}
-			addr := net.JoinHostPort(checkHost, svc.Port)
+			addr := net.JoinHostPort(checkHost, livePort)
 			for {
 				if !IsPortListening(addr, 100*time.Millisecond) {
 					break
 				}
-				isFleet, err := utils.IsOccupantFleetService(svc.Port)
+				isFleet, err := utils.IsOccupantFleetService(livePort)
 				if err != nil {
 					LogError(svc.Name, "Failed to inspect port occupant: %v", err)
 				}
 				if isFleet {
-					LogError(svc.Name, "Port %s is occupied by a fleet service! Attempting to clean up orphaned process...", svc.Port)
-					utils.KillProcessOnPort(svc.Port)
+					LogError(svc.Name, "Port %s is occupied by a fleet service! Attempting to clean up orphaned process...", livePort)
+					utils.KillProcessOnPort(livePort)
 					time.Sleep(500 * time.Millisecond)
 				} else {
-					LogError(svc.Name, "Port %s is occupied by a non-fleet service! Please free the port to proceed. Retrying in 5 seconds...", svc.Port)
+					LogError(svc.Name, "Port %s is occupied by a non-fleet service! Please free the port to proceed. Retrying in 5 seconds...", livePort)
 					time.Sleep(5 * time.Second)
 				}
 			}
@@ -350,6 +360,10 @@ func MonitorAndSupervise(svc *Service, baseEnv []string, localIPs map[string]boo
 		}
 
 		RegisterCmd(cmd)
+		if oldCmd := svc.ActiveCmd.Swap(cmd); oldCmd != nil && oldCmd != cmd && oldCmd.Process != nil {
+			LogInfo(svc.Name, "Replacing older process instance (PID %d) with newly started PID %d...", oldCmd.Process.Pid, cmd.Process.Pid)
+			utils.KillProcessGroup(oldCmd)
+		}
 		svc.Mu.Lock()
 		svc.Cmd = cmd
 		svc.Running = true
@@ -373,10 +387,13 @@ func MonitorAndSupervise(svc *Service, baseEnv []string, localIPs map[string]boo
 		err = cmd.Wait()
 		pipeWg.Wait()
 		UnregisterCmd(cmd)
+		svc.ActiveCmd.CompareAndSwap(cmd, nil)
 
 		svc.Mu.Lock()
-		svc.Running = false
-		svc.Cmd = nil
+		if svc.Cmd == cmd {
+			svc.Running = false
+			svc.Cmd = nil
+		}
 		wasPaused := svc.Paused
 		maxCrashes := svc.MaxCrashes
 		if maxCrashes <= 0 {

@@ -114,6 +114,12 @@ func (c *Controller) RestartService(ctx context.Context, name string) error {
 		return fmt.Errorf("service not found: %s", name)
 	}
 
+	if activeCmd := svc.ActiveCmd.Swap(nil); activeCmd != nil && activeCmd.Process != nil {
+		supervisor.LogInfo("watchdog", "Request to restart service '%s' (killing process group PID %d)...", svc.Name, activeCmd.Process.Pid)
+		utils.KillProcessGroupByID(activeCmd.Process.Pid)
+		return nil
+	}
+
 	svc.Mu.Lock()
 	defer svc.Mu.Unlock()
 
@@ -149,6 +155,12 @@ func (c *Controller) PauseService(ctx context.Context, name string) error {
 
 	svc.Paused = true
 	supervisor.LogInfo("watchdog", "Supervision for service '%s' paused by operator.", svc.Name)
+
+	if activeCmd := svc.ActiveCmd.Swap(nil); activeCmd != nil && activeCmd.Process != nil {
+		supervisor.LogInfo("watchdog", "Terminating active process group for paused service '%s' (PID %d)...", svc.Name, activeCmd.Process.Pid)
+		utils.KillProcessGroupByID(activeCmd.Process.Pid)
+		return nil
+	}
 
 	if svc.Running && svc.Cmd != nil && svc.Cmd.Process != nil {
 		supervisor.LogInfo("watchdog", "Terminating active process group for paused service '%s' (PID %d)...", svc.Name, svc.Cmd.Process.Pid)

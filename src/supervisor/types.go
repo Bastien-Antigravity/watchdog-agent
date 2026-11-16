@@ -18,14 +18,19 @@ package supervisor
 import (
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	unilog_ifaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 
 // -----------------------------------------------------------------------------
 
-var Logger unilog_ifaces.Logger
+var (
+	Logger    unilog_ifaces.Logger
+	AppConfig *config.AppConfig
+)
 
 // -----------------------------------------------------------------------------
 
@@ -58,6 +63,7 @@ type Service struct {
 	Port         string
 	LogColor     string
 	Cmd          *exec.Cmd
+	ActiveCmd    atomic.Pointer[exec.Cmd]
 	Running      bool
 	Paused       bool          // when true, supervisor loop does not auto-restart process
 	InCrashLoop  bool          // true if tripped by circuit breaker
@@ -66,4 +72,16 @@ type Service struct {
 	CrashWindow  time.Duration // window for crash counting (default 30s)
 	RestartDelay time.Duration // delay before restarting (default 3s)
 	Mu           sync.Mutex
+}
+
+// ResolveAddr dynamically resolves the live IP and Port from AppConfig's atomic LiveConfig,
+// falling back to the service's baseline IP and Port.
+func (svc *Service) ResolveAddr() (string, string) {
+	if AppConfig != nil && svc.CapName != "" && svc.Name != "rag-dashboard" {
+		ip, port := resolveServiceAddr(AppConfig, svc.CapName, svc.IP, svc.Port)
+		if ip != "" && port != "" {
+			return ip, port
+		}
+	}
+	return svc.IP, svc.Port
 }

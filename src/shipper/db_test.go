@@ -61,7 +61,7 @@ func TestResolveDBConfigWithAppConfig_FallbackToRagEngineDBName(t *testing.T) {
 			"user":     "dbuser",
 			"password": "pw",
 			"db_name":  "maindb",
-			"ssl_cert": "false",
+			"ssl_cert": false, // Native boolean from YAML parser
 		},
 		"rag_engine": map[string]interface{}{
 			"db_name": "obsidiandb",
@@ -74,6 +74,30 @@ func TestResolveDBConfigWithAppConfig_FallbackToRagEngineDBName(t *testing.T) {
 	}
 	if dbCfg.DBName != "obsidiandb" || dbCfg.SSLMode != "disable" {
 		t.Errorf("unexpected dbCfg: %+v", dbCfg)
+	}
+}
+
+func TestResolveDBConfigWithAppConfig_BooleanSSLCertTrue(t *testing.T) {
+	cfg := makeTestAppConfig(map[string]interface{}{
+		"timescale_db": map[string]interface{}{
+			"ip":       "127.0.0.1",
+			"port":     "5432",
+			"user":     "dbuser",
+			"password": "pw",
+			"db_name":  "maindb",
+			"ssl_cert": true, // Native boolean true
+		},
+		"watchdog_agent": map[string]interface{}{
+			"db_name": "obsidiandb",
+		},
+	})
+
+	dbCfg, err := ResolveDBConfigWithAppConfig(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dbCfg.SSLMode != "require" {
+		t.Errorf("expected sslmode require when ssl_cert=true (bool), got %s", dbCfg.SSLMode)
 	}
 }
 

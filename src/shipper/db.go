@@ -49,12 +49,12 @@ type DBConfig struct {
 
 // TimescaleDBCap mirrors the validated capabilities.timescale_db YAML structure.
 type TimescaleDBCap struct {
-	IP       string `json:"ip"`
-	Port     string `json:"port"`
-	User     string `json:"user"`
-	Password string `json:"password"`
-	DBName   string `json:"db_name"`
-	SSLCert  string `json:"ssl_cert"`
+	IP       string      `json:"ip"`
+	Port     string      `json:"port"`
+	User     string      `json:"user"`
+	Password string      `json:"password"`
+	DBName   string      `json:"db_name"`
+	SSLCert  interface{} `json:"ssl_cert"`
 }
 
 // WatchdogErrorDBCap captures optional watchdog_agent error log settings in AppConfig.
@@ -104,7 +104,7 @@ func ResolveDBConfigWithAppConfig(appConfig *toolbox_config.AppConfig) (DBConfig
 	}
 
 	sslMode := "disable"
-	if tsCap.SSLCert == "true" {
+	if tsCap.SSLCert == true || tsCap.SSLCert == "true" {
 		sslMode = "require"
 	}
 

@@ -8,7 +8,8 @@ The `watchdog-agent` is a modular, cross-platform Go-based supervisor that coord
 
 ## 🛠️ Key Features
 
-- **Process Supervision**: Supervises child processes, capturing stdout/stderr and routing them with service-specific prefixes and colors.
+- **Process Supervision & Atomic Instance Eviction**: Supervises child processes, tracks the active instance via `atomic.Pointer[exec.Cmd]` (`ActiveCmd`) to atomically evict any older duplicate process on spawn, and captures stdout/stderr with service-specific prefixes and colors.
+- **Live Address Resolution**: Resolves service IP and port dynamically via `svc.ResolveAddr()` against `AppConfig`'s `LiveConfig` atomic pointer (`service_addresses` registry and live capability overrides) during supervision, dependency checks, port pruning, and telemetry probes.
 - **Dependency Topological Ordering**: Validates dependency graphs at startup to detect loop deadlocks and missing services, blocking process launch until sibling dependencies are healthy.
 - **Multi-Node Autonomous Filtering**: Uses `utils.IsLocal(svc.IP)` to automatically supervise only services assigned to the local node, skipping remote nodes (cloud VPS or external machines) without requiring distinct configs.
 - **Dynamic NATS & Bus Management**: Dynamically launches and binds `nats-server` to configured IPs and ports (`-a <ip> -p <port> -c <config> -js`), maintaining parity across native and container stacks.

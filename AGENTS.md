@@ -35,3 +35,6 @@ go test -v ./...
    - `nats-server` process launch is driven entirely by dynamic CLI arguments constructed from `capabilities.nats` in configuration (`-js`, `-sd <store_dir>`, `-p <port>`, `-a <ip>`, `-m <http_port>`, `-n <server_name>`).
    - If `tls.enabled: true` or non-loopback IP with certificate assets is configured, the supervisor automatically injects `--tls`, `--tlscert`, `--tlskey`, `--tlsverify`, and `--tlscacert`.
    - Never rely on static or hardcoded `nats-server.conf` files or directories.
+8. **Live Config Address Resolution & Atomic Duplicate Process Eviction (`svc.ResolveAddr()` & `svc.ActiveCmd`)**:
+   - Supervised services resolve their current `ip` and `port` dynamically via `svc.ResolveAddr()`, reading `AppConfig`'s lock-free `LiveConfig` atomic pointer (`service_addresses` broadcast registry or live capability overrides) with fallback to static `Capabilities`.
+   - `Service.ActiveCmd` (`atomic.Pointer[exec.Cmd]`) atomically swaps the active process handle when a new instance is spawned (`old := svc.ActiveCmd.Swap(cmd)`), immediately terminating any older duplicate instance via `utils.KillProcessTree(old)` and using `svc.ActiveCmd.CompareAndSwap(cmd, nil)` on exit so an exiting process never clears a newer replacement's handle.

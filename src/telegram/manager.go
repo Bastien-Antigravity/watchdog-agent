@@ -20,6 +20,7 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -202,9 +203,26 @@ func SetupTelegram(appConfig *toolbox_config.AppConfig, controller core.Watchdog
 	// Initial menu build
 	mgr.RebuildMenu()
 
-	teleClient.Start()
+	stopWait := make(chan struct{})
+	go func() {
+		addr := net.JoinHostPort(ip, fmt.Sprintf("%d", port))
+		// On initial cold boot, wait until tele-remote is listening so we don't spam connection refused warnings
+		for {
+			select {
+			case <-stopWait:
+				return
+			default:
+			}
+			if supervisor.IsPortListening(addr, 500*time.Millisecond) {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
+		teleClient.Start()
+	}()
 
 	lm.Register("TeleClient", func() error {
+		close(stopWait)
 		teleClient.Close()
 		return nil
 	})

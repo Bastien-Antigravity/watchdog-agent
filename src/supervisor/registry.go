@@ -35,6 +35,7 @@ import (
 
 // RegisterServices initializes the topology registry slice of managed services
 func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
+	AppConfig = cfg
 	exeExt := ""
 	if runtime.GOOS == "windows" {
 		exeExt = ".exe"
@@ -332,6 +333,30 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 				}
 			}
 		}
+	}
+
+	// Subscribe to live configuration updates so address changes evict older process instances
+	if cfg != nil && cfg.Config != nil {
+		cfg.OnLiveConfUpdate(func(_ map[string]interface{}) {
+			for _, svc := range Services {
+				newIP, newPort := svc.ResolveAddr()
+				svc.Mu.Lock()
+				changed := (newIP != "" && newIP != svc.IP) || (newPort != "" && newPort != svc.Port)
+				if changed {
+					oldAddr := net.JoinHostPort(svc.IP, svc.Port)
+					svc.IP = newIP
+					svc.Port = newPort
+					svc.Mu.Unlock()
+
+					if oldCmd := svc.ActiveCmd.Swap(nil); oldCmd != nil && oldCmd.Process != nil {
+						LogInfo(svc.Name, "Live address updated (%s -> %s:%s); terminating older process instance (PID %d)...", oldAddr, newIP, newPort, oldCmd.Process.Pid)
+						utils.KillProcessGroup(oldCmd)
+					}
+				} else {
+					svc.Mu.Unlock()
+				}
+			}
+		})
 	}
 }
 

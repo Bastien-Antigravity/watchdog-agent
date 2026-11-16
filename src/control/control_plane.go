@@ -161,15 +161,16 @@ func collectServicesStatus(hostname string) []byte {
 
 	statusMap := make(map[string]ServiceStatus)
 	for _, svc := range supervisor.Services {
+		ip, port := svc.ResolveAddr()
+		cmd := svc.ActiveCmd.Load()
 		svc.Mu.Lock()
 		running := svc.Running
-		pid := 0
-		if running && svc.Cmd != nil && svc.Cmd.Process != nil {
-			pid = svc.Cmd.Process.Pid
-		}
-		ip := svc.IP
-		port := svc.Port
 		svc.Mu.Unlock()
+
+		pid := 0
+		if running && cmd != nil && cmd.Process != nil {
+			pid = cmd.Process.Pid
+		}
 
 		statusStr := "STOPPED"
 		if running {
