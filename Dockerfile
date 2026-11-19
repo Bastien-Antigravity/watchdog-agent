@@ -26,6 +26,8 @@ RUN go mod tidy && \
 # === RUNTIME STAGE ===
 FROM alpine:3.20
 
+LABEL org.opencontainers.image.source="https://github.com/Bastien-Antigravity/watchdog-agent"
+
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates tzdata && mkdir -p /watchdog-agent/state
 
