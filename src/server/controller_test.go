@@ -66,4 +66,3 @@ func TestController_PauseAndResumeService(t *testing.T) {
 		t.Fatalf("expected InCrashLoop=false and CrashCount=0 after resume, got %+v", status.Services[0])
 	}
 }
-

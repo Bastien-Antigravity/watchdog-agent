@@ -105,4 +105,3 @@ func ResolveRuntimeOptions(
 		IsDocker:  isDocker,
 	}
 }
-

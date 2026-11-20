@@ -103,4 +103,3 @@ func TestCheckpointManager_PruneMissingFiles(t *testing.T) {
 		t.Errorf("expected active.log offset to remain 128, got %d", off)
 	}
 }
-

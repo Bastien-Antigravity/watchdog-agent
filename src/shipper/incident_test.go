@@ -141,4 +141,3 @@ func TestNatsIncidentPublisher_PublishesPartitionedPayload(t *testing.T) {
 		t.Fatal("expected non-empty JSON payload")
 	}
 }
-

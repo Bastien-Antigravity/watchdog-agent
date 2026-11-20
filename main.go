@@ -30,6 +30,7 @@ import (
 	"time"
 
 	toolbox_bootstrap "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/bootstrap"
+	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	toolbox_lifecycle "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/lifecycle"
 	toolbox_spec "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/spec"
 	watchdog_config "github.com/Bastien-Antigravity/watchdog-agent/src/config"
@@ -235,7 +236,7 @@ func main() {
 						}
 					}()
 
-					mfeUrl := fmt.Sprintf("http://%s/static/mfe.js", restAddr)
+					mfeUrl := buildMFEURL(cfg, restAddr)
 					_ = toolbox_spec.PublishWithLifecycle(cfg, appLogger, lm, "watchdog_agent", toolbox_spec.ServiceSpec{
 						Name:        "Watchdog Agent",
 						Tag:         "watchdog-agent-mfe",
@@ -314,4 +315,10 @@ func main() {
 	}
 
 	lm.Wait(context.Background())
+}
+
+// -----------------------------------------------------------------------------
+
+func buildMFEURL(cfg *toolbox_config.AppConfig, restAddr string) string {
+	return toolbox_spec.ResolveMFEURL(cfg, fmt.Sprintf("http://%s/static/mfe.js", restAddr))
 }

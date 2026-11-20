@@ -14,28 +14,29 @@ import (
 
 type mockWatchdogLogger struct{}
 
-func (m *mockWatchdogLogger) Debug(format string, args ...any)                            {}
-func (m *mockWatchdogLogger) Info(format string, args ...any)                             {}
-func (m *mockWatchdogLogger) Warning(format string, args ...any)                          {}
-func (m *mockWatchdogLogger) Error(format string, args ...any)                            {}
-func (m *mockWatchdogLogger) Critical(format string, args ...any)                         {}
-func (m *mockWatchdogLogger) Stream(format string, args ...any)                           {}
-func (m *mockWatchdogLogger) Logon(format string, args ...any)                            {}
-func (m *mockWatchdogLogger) Logout(format string, args ...any)                           {}
-func (m *mockWatchdogLogger) Trade(format string, args ...any)                            {}
-func (m *mockWatchdogLogger) Schedule(format string, args ...any)                         {}
-func (m *mockWatchdogLogger) Report(format string, args ...any)                           {}
-func (m *mockWatchdogLogger) GetNotifQueue() <-chan *unilog_interfaces.NotifMessage       { return nil }
-func (m *mockWatchdogLogger) SetLocalNotifQueue(ch chan *unilog_interfaces.NotifMessage)  {}
+func (m *mockWatchdogLogger) Debug(format string, args ...any)                              {}
+func (m *mockWatchdogLogger) Info(format string, args ...any)                               {}
+func (m *mockWatchdogLogger) Warning(format string, args ...any)                            {}
+func (m *mockWatchdogLogger) Error(format string, args ...any)                              {}
+func (m *mockWatchdogLogger) Critical(format string, args ...any)                           {}
+func (m *mockWatchdogLogger) Stream(format string, args ...any)                             {}
+func (m *mockWatchdogLogger) Logon(format string, args ...any)                              {}
+func (m *mockWatchdogLogger) Logout(format string, args ...any)                             {}
+func (m *mockWatchdogLogger) Trade(format string, args ...any)                              {}
+func (m *mockWatchdogLogger) Schedule(format string, args ...any)                           {}
+func (m *mockWatchdogLogger) Report(format string, args ...any)                             {}
+func (m *mockWatchdogLogger) GetNotifQueue() <-chan *unilog_interfaces.NotifMessage         { return nil }
+func (m *mockWatchdogLogger) SetLocalNotifQueue(ch chan *unilog_interfaces.NotifMessage)    {}
 func (m *mockWatchdogLogger) Log(level unilog_interfaces.Level, format string, args ...any) {}
-func (m *mockWatchdogLogger) LogWithCaller(level unilog_interfaces.Level, msg, file, line, function, module string) {}
-func (m *mockWatchdogLogger) SetLevel(level unilog_interfaces.Level)                      {}
-func (m *mockWatchdogLogger) GetLevel() unilog_interfaces.Level                           { return unilog_interfaces.LevelInfo }
-func (m *mockWatchdogLogger) SetCallerSkip(skip int)                                      {}
-func (m *mockWatchdogLogger) SetMetadata(metadata map[string]string)                      {}
-func (m *mockWatchdogLogger) GetMetadata() map[string]string                              { return nil }
-func (m *mockWatchdogLogger) AddMetadata(key, value string)                               {}
-func (m *mockWatchdogLogger) Close()                                                      {}
+func (m *mockWatchdogLogger) LogWithCaller(level unilog_interfaces.Level, msg, file, line, function, module string) {
+}
+func (m *mockWatchdogLogger) SetLevel(level unilog_interfaces.Level) {}
+func (m *mockWatchdogLogger) GetLevel() unilog_interfaces.Level      { return unilog_interfaces.LevelInfo }
+func (m *mockWatchdogLogger) SetCallerSkip(skip int)                 {}
+func (m *mockWatchdogLogger) SetMetadata(metadata map[string]string) {}
+func (m *mockWatchdogLogger) GetMetadata() map[string]string         { return nil }
+func (m *mockWatchdogLogger) AddMetadata(key, value string)          {}
+func (m *mockWatchdogLogger) Close()                                 {}
 
 type mockWatchdogControl struct{}
 
@@ -51,8 +52,8 @@ func (m *mockWatchdogControl) GetStatus(ctx context.Context) (core.WatchdogStatu
 }
 func (m *mockWatchdogControl) RestartService(ctx context.Context, name string) error { return nil }
 func (m *mockWatchdogControl) RestartAll(ctx context.Context) error                  { return nil }
-func (m *mockWatchdogControl) PauseService(ctx context.Context, name string) error    { return nil }
-func (m *mockWatchdogControl) ResumeService(ctx context.Context, name string) error   { return nil }
+func (m *mockWatchdogControl) PauseService(ctx context.Context, name string) error   { return nil }
+func (m *mockWatchdogControl) ResumeService(ctx context.Context, name string) error  { return nil }
 
 func TestWatchdogHandlerContractsEndpoint(t *testing.T) {
 	h := NewRESTHandler(&mockWatchdogControl{}, &mockWatchdogLogger{})
@@ -104,4 +105,3 @@ func TestWatchdogHandlerPauseResumeEndpoints(t *testing.T) {
 		t.Fatalf("expected successful resume response, got %+v (err: %v)", resumeResp, err)
 	}
 }
-

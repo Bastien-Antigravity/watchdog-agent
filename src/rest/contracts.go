@@ -239,4 +239,3 @@ func (h *RESTHandler) handleContracts(w http.ResponseWriter, r *http.Request) {
 	contracts := BuildExchangeContracts(h.appConfig, svcNames)
 	h.sendJSON(w, toolbox_spec.NewContractsEnvelope("watchdog_agent", version, "watchdog-agent (live supervisor + shipper DDL + NATS config)", contracts))
 }
-

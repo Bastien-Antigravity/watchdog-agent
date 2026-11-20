@@ -127,4 +127,3 @@ func (cm *CheckpointManager) PruneMissingFiles(existingFiles map[string]bool) bo
 	}
 	return pruned
 }
-
