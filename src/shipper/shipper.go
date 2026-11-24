@@ -99,7 +99,7 @@ func NewLogShipper(cfg Config) (*LogShipper, error) {
 		cm:             cm,
 		throttler:      NewIncidentThrottler(60 * time.Second),
 		reconnStrategy: toolbox_conn.NewCriticalStrategy(cfg.Logger),
-		logger:         toolbox_logger.EnsureSafeLogger(cfg.Logger),
+		logger:         cfg.Logger,
 	}
 
 	// Non-fatal initial DB/schema check: offline DB or pending schema freezes cursors until recovery.

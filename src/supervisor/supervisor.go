@@ -1,5 +1,7 @@
 package supervisor
 
+// cli:allow-print
+
 // =============================================================================
 // ESSENTIAL PROCESS:
 // Core supervisor engine managing lifecycle, port liveness, execution loops,
@@ -255,7 +257,8 @@ func MonitorAndSupervise(svc *Service, baseEnv []string, localIPs map[string]boo
 					LogInfo(svc.Name, "Attempting auto-recovery: starting NATS container via Docker...")
 					startCmd := exec.Command(dockerPath, "start", "nats-server")
 					if err := startCmd.Run(); err != nil {
-						runCmd := exec.Command(dockerPath, "run", "-d", "--name", "nats-server", "-p", "4222:4222", "-p", "8222:8222", "nats:2.12.6-alpine3.22", "-m", "8222", "-js")
+						portMap := svc.Port + ":" + svc.Port
+						runCmd := exec.Command(dockerPath, "run", "-d", "--name", "nats-server", "-p", portMap, "-p", "8222:8222", "nats:2.12.6-alpine3.22", "-m", "8222", "-js")
 						_ = runCmd.Run()
 					}
 					time.Sleep(2 * time.Second)

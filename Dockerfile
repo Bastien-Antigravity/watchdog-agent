@@ -8,7 +8,7 @@ RUN apk add --no-cache git gcc musl-dev ca-certificates tzdata
 
 WORKDIR /workspace
 
-# Clone shared library modules for replace directives in builder stage
+# Clone shared library modules for go.work resolution in builder stage
 RUN git clone --depth 1 -b develop https://github.com/Bastien-Antigravity/microservice-toolbox.git /workspace/microservice-toolbox && \
     git clone --depth 1 -b develop https://github.com/Bastien-Antigravity/distributed-config.git /workspace/distributed-config && \
     git clone --depth 1 -b develop https://github.com/Bastien-Antigravity/safe-socket.git /workspace/safe-socket && \
@@ -18,8 +18,10 @@ RUN git clone --depth 1 -b develop https://github.com/Bastien-Antigravity/micros
 WORKDIR /workspace/watchdog-agent
 COPY . .
 
-# Ensure dependencies are tidy and build binary (fail fast if VERSION.txt missing)
-RUN go mod tidy && \
+# Initialize workspace go.work for cloned sibling modules and build binary (fail fast if VERSION.txt missing)
+RUN cd /workspace && \
+    go work init ./watchdog-agent ./microservice-toolbox ./distributed-config ./safe-socket ./universal-logger ./flexible-logger && \
+    cd /workspace/watchdog-agent && \
     VERSION=$(cat VERSION.txt) && \
     CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X 'github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/version.BuildVersion=${VERSION}'" -o /watchdog-agent-bin ./main.go
 

@@ -6,7 +6,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	toolbox_logger "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/logger"
 )
+
+func testLogger() toolbox_logger.Logger {
+	return toolbox_logger.EnsureSafeLogger(nil)
+}
 
 func testDummyDBConfig() DBConfig {
 	return DBConfig{
@@ -42,6 +48,7 @@ func TestShipper_DiscoverFilesAndCheckpoint(t *testing.T) {
 		PollInterval:   100 * time.Millisecond,
 		BrainID:        "obsidian-brain",
 		DBConfig:       testDummyDBConfig(),
+		Logger:         testLogger(),
 	}
 
 	shipper, err := NewLogShipper(cfg)
@@ -92,6 +99,7 @@ func TestShipper_TailSingleFile_SkipsIncompleteEOFLine(t *testing.T) {
 		CheckpointPath: filepath.Join(tempDir, ".shipper_offsets.json"),
 		BrainID:        "trading-brain",
 		DBConfig:       testDummyDBConfig(),
+		Logger:         testLogger(),
 	})
 	if err != nil {
 		t.Fatalf("NewLogShipper failed: %v", err)
@@ -146,6 +154,7 @@ func TestShipper_TailSingleFile_BoundedBatchChunking(t *testing.T) {
 		CheckpointPath: filepath.Join(tempDir, ".shipper_offsets.json"),
 		MaxBatchSize:   2,
 		DBConfig:       testDummyDBConfig(),
+		Logger:         testLogger(),
 	})
 	if err != nil {
 		t.Fatalf("NewLogShipper failed: %v", err)
@@ -195,6 +204,7 @@ func TestShipper_RotationDetection(t *testing.T) {
 		RootDir:        tempDir,
 		CheckpointPath: checkpointPath,
 		DBConfig:       testDummyDBConfig(),
+		Logger:         testLogger(),
 	})
 	if err != nil {
 		t.Fatalf("NewLogShipper failed: %v", err)
@@ -227,6 +237,7 @@ func TestShipper_OfflineDB_OffsetsFreeze(t *testing.T) {
 		CheckpointPath: checkpointPath,
 		PollInterval:   100 * time.Millisecond,
 		DBConfig:       testDummyDBConfig(),
+		Logger:         testLogger(),
 	}
 
 	shipper, err := NewLogShipper(cfg)
@@ -264,6 +275,7 @@ func TestShipper_SkipsForwardedEntriesInMainLog(t *testing.T) {
 		RootDir:        tempDir,
 		CheckpointPath: filepath.Join(tempDir, ".shipper_offsets.json"),
 		DBConfig:       testDummyDBConfig(),
+		Logger:         testLogger(),
 	})
 	if err != nil {
 		t.Fatalf("failed to create shipper: %v", err)
