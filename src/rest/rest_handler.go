@@ -277,7 +277,7 @@ func (h *RESTHandler) handleStartPostgres(w http.ResponseWriter, r *http.Request
 		h.sendJSON(w, httpControlResponse{
 			Success:   false,
 			Message:   "Postgres address not resolved from capability configurations",
-			Timestamp: time.Now().Unix(),
+			Timestamp: time.Now().UTC().Unix(),
 		})
 		return
 	}
@@ -287,13 +287,12 @@ func (h *RESTHandler) handleStartPostgres(w http.ResponseWriter, r *http.Request
 	h.sendJSON(w, httpControlResponse{
 		Success:   true,
 		Message:   "Postgres launch process triggered in background",
-		Timestamp: time.Now().Unix(),
+		Timestamp: time.Now().UTC().Unix(),
 	})
 }
 
-// StartServer launches HTTP REST API server
-func (h *RESTHandler) StartServer(port int) error {
-	addr := fmt.Sprintf(":%d", port)
+// StartServer launches HTTP REST API server on the exact configured host:port address.
+func (h *RESTHandler) StartServer(addr string) (*http.Server, error) {
 	h.logger.Info("Starting REST management server on %s", addr)
 
 	server := &http.Server{
@@ -303,5 +302,5 @@ func (h *RESTHandler) StartServer(port int) error {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	return server.ListenAndServe()
+	return server, server.ListenAndServe()
 }

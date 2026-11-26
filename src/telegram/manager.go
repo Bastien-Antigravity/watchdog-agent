@@ -173,22 +173,20 @@ func (m *MenuManager) RebuildMenu() {
 
 // SetupTelegram initializes the Tele-Remote client, binds dynamic updates, and registers with Lifecycle Manager.
 func SetupTelegram(appConfig *toolbox_config.AppConfig, controller core.WatchdogController, logger unilog_ifaces.Logger, lm *toolbox_lifecycle.Manager) {
-	var teleCap struct {
-		IP   string `json:"ip"`
-		Port string `json:"port"`
-	}
-	if err := appConfig.GetCapability("tele_remote", &teleCap); err != nil {
+	teleAddr, err := appConfig.GetListenAddr("tele_remote")
+	if err != nil || teleAddr == "" {
 		logger.Warning("Tele-Remote capability not found or configured: %v", err)
 		return
 	}
-	port := 1863
-	if teleCap.Port != "" {
-		fmt.Sscanf(teleCap.Port, "%d", &port)
+	ip, portStr, splitErr := net.SplitHostPort(teleAddr)
+	if splitErr != nil || ip == "" || portStr == "" {
+		logger.Warning("Tele-Remote listen address '%s' is invalid: %v", teleAddr, splitErr)
+		return
 	}
-
-	ip := "127.0.0.1"
-	if teleCap.IP != "" {
-		ip = teleCap.IP
+	var port int
+	if _, scanErr := fmt.Sscanf(portStr, "%d", &port); scanErr != nil || port <= 0 {
+		logger.Warning("Tele-Remote port '%s' is invalid: %v", portStr, scanErr)
+		return
 	}
 
 	teleClient := toolbox_teleclient.NewTeleClient("Watchdog Agent", ip, port, logger)

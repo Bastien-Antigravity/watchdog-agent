@@ -8,8 +8,8 @@ tags:
 - '#service/watchdog-agent'
 - '#type/architecture'
 - '#state/active'
+- '#zone/3-fleet'
 ---
-
 # 🏗️ Watchdog Agent — Architecture Overview
 
 High-density structural map of the `watchdog-agent` process supervisor.

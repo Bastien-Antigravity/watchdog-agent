@@ -8,8 +8,8 @@ tags:
 - '#service/watchdog-agent'
 - '#type/features-behavior'
 - '#state/active'
+- '#zone/3-fleet'
 ---
-
 # 🕹️ Watchdog Agent — Features & Behavior
 
 Detailed reference of process supervision and recovery behavior of the `watchdog-agent`.

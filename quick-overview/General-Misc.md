@@ -8,8 +8,8 @@ tags:
 - '#service/watchdog-agent'
 - '#type/general-misc'
 - '#state/active'
+- '#zone/3-fleet'
 ---
-
 # 📝 Watchdog Agent — General & Miscellaneous
 
 Supplementary notes and common operational commands.

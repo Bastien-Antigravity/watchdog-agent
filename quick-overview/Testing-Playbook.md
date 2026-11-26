@@ -8,8 +8,8 @@ tags:
 - '#service/watchdog-agent'
 - '#type/testing-playbook'
 - '#state/active'
+- '#zone/3-fleet'
 ---
-
 # 🧪 Watchdog Agent — Testing Playbook
 
 Manual verification instructions for `watchdog-agent` process locking and sync capability operations.

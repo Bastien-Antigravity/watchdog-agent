@@ -23,6 +23,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,6 +34,7 @@ import (
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	toolbox_lifecycle "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/lifecycle"
 	toolbox_spec "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/spec"
+	toolbox_wiretap "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/wiretap"
 	watchdog_config "github.com/Bastien-Antigravity/watchdog-agent/src/config"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/control"
 	"github.com/Bastien-Antigravity/watchdog-agent/src/rest"
@@ -86,14 +88,21 @@ func main() {
 	// 3. Initialize Service via Unified Ecosystem Bootstrapper
 	cfg, appLogger := toolbox_bootstrap.BootstrapService("watchdog-agent")
 	if cfg == nil || appLogger == nil {
-		panic("Failed to bootstrap watchdog-agent: cfg and appLogger must not be nil")
+		_, _ = fmt.Fprintln(os.Stderr, "CRITICAL: Failed to bootstrap watchdog-agent: cfg and appLogger must not be nil")
+		os.Exit(1)
 	}
 	defer appLogger.Close()
 	supervisor.Logger = appLogger
 
-	supervisor.LogInfo("watchdog", "Starting Bastien-Antigravity Watchdog Agent (Profile: %s, Mode: %s)...", opts.Profile, opts.Mode)
-	supervisor.LogInfo("watchdog", "Active Capabilities -> Supervise: %t, Shipper: %t, REST/Dashboard: %t", opts.Supervise, opts.Shipper, opts.REST)
-	supervisor.LogInfo("watchdog", "Resolved workspace root: %s", rootDir)
+	version := cfg.GetVersion()
+	appLogger.Info("Starting Bastien-Antigravity Watchdog Agent v%s (Profile: %s, Mode: %s)...", version, opts.Profile, opts.Mode)
+	appLogger.Info("Active Capabilities -> Supervise: %t, Shipper: %t, REST/Dashboard: %t", opts.Supervise, opts.Shipper, opts.REST)
+	appLogger.Info("Resolved workspace root: %s", rootDir)
+
+	cfg.OnLiveConfUpdate(func(_ map[string]interface{}) {
+		toolbox_wiretap.ConfigureFromConfig("watchdog-agent", cfg)
+		appLogger.Info("Watchdog Agent live configuration hot-reload applied (profile: %s)", cfg.Profile)
+	})
 
 	// Detect local host IPs to determine local service assignments
 	localIPs, err := utils.GetLocalIPs()
@@ -221,20 +230,32 @@ func main() {
 		// Initialize Watchdog Controller
 		ctrl := server.NewController(postgresAddr, ragMcpAddr)
 
-		// Resolve REST address and Start REST Server
+		// Resolve REST address verbatim from AppConfig (zero 0.0.0.0 IP rewriting)
 		restAddr, err := cfg.GetRESTAddr("watchdog_agent")
-		if err == nil {
-			parts := strings.SplitN(restAddr, ":", 2)
-			var restPort int
-			if len(parts) == 2 {
-				if _, err := fmt.Sscanf(parts[1], "%d", &restPort); err == nil {
+		if err == nil && restAddr != "" {
+			_, portStr, splitErr := net.SplitHostPort(restAddr)
+			if splitErr == nil {
+				var restPort int
+				if _, err := fmt.Sscanf(portStr, "%d", &restPort); err == nil {
 					restHandler := rest.NewRESTHandler(ctrl, appLogger)
 					restHandler.SetAppConfig(cfg)
+					restServer := &http.Server{
+						Addr:         restAddr,
+						Handler:      restHandler.Handler(),
+						ReadTimeout:  5 * time.Second,
+						WriteTimeout: 10 * time.Second,
+					}
 					go func() {
-						if err := restHandler.StartServer(restPort); err != nil {
-							appLogger.Error("REST server failed to start: %v", err)
+						appLogger.Info("Starting REST management server on %s", restAddr)
+						if sErr := restServer.ListenAndServe(); sErr != nil && sErr != http.ErrServerClosed {
+							appLogger.Error("REST server failed to start: %v", sErr)
 						}
 					}()
+					lm.Register("WatchdogRESTServer", func() error {
+						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						defer cancel()
+						return restServer.Shutdown(ctx)
+					})
 
 					mfeUrl := buildMFEURL(cfg, restAddr)
 					_ = toolbox_spec.PublishWithLifecycle(cfg, appLogger, lm, "watchdog_agent", toolbox_spec.ServiceSpec{

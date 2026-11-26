@@ -67,6 +67,8 @@ type LogShipper struct {
 	mu             sync.Mutex
 	reconnNextTry  time.Time
 	reconnAttempt  int
+	cachedFiles    []string
+	lastDiscovery  time.Time
 }
 
 // -----------------------------------------------------------------------------
@@ -132,35 +134,47 @@ func (s *LogShipper) ScanDir() string {
 }
 
 // DiscoverFiles finds all *.log files in Docker volumes or native workspace trees.
+// Results are cached for 15 seconds to eliminate continuous filesystem traversal overhead.
 func (s *LogShipper) DiscoverFiles() ([]string, error) {
+	if len(s.cachedFiles) > 0 && time.Since(s.lastDiscovery) < 15*time.Second {
+		return s.cachedFiles, nil
+	}
+
 	var candidates []string
 
 	if s.cfg.ScanDir != "" && DirExists(s.cfg.ScanDir) {
-		err := filepath.Walk(s.cfg.ScanDir, func(path string, info os.FileInfo, err error) error {
+		err := filepath.WalkDir(s.cfg.ScanDir, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return nil
 			}
-			if !info.IsDir() && strings.HasSuffix(info.Name(), ".log") {
+			if !d.IsDir() && strings.HasSuffix(d.Name(), ".log") {
 				candidates = append(candidates, path)
 			}
 			return nil
 		})
+		if err == nil {
+			s.cachedFiles = candidates
+			s.lastDiscovery = time.Now()
+		}
 		return candidates, err
 	}
 
 	if s.cfg.RootDir != "" {
-		err := filepath.Walk(s.cfg.RootDir, func(path string, info os.FileInfo, err error) error {
+		err := filepath.WalkDir(s.cfg.RootDir, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return nil
 			}
-			if info.IsDir() {
-				name := info.Name()
-				if name == ".git" || name == "target" || name == "node_modules" || name == "vendor" {
+			if d.IsDir() {
+				name := d.Name()
+				if name == ".git" || name == "target" || name == "node_modules" || name == "vendor" ||
+					name == ".venv" || name == "venv" || name == "__pycache__" || name == ".pytest_cache" ||
+					name == ".rag_cache" || name == "data" || name == ".idea" || name == ".vscode" ||
+					name == ".cargo" || name == "build" || name == "dist" {
 					return filepath.SkipDir
 				}
 				return nil
 			}
-			if strings.HasSuffix(info.Name(), ".log") {
+			if strings.HasSuffix(d.Name(), ".log") {
 				normalized := filepath.ToSlash(path)
 				if strings.Contains(normalized, "/logs/") || strings.Contains(normalized, "/bin/logs/") {
 					candidates = append(candidates, path)
@@ -168,6 +182,10 @@ func (s *LogShipper) DiscoverFiles() ([]string, error) {
 			}
 			return nil
 		})
+		if err == nil {
+			s.cachedFiles = candidates
+			s.lastDiscovery = time.Now()
+		}
 		return candidates, err
 	}
 

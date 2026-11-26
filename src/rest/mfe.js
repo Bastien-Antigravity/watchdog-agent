@@ -255,7 +255,7 @@ class WatchdogAgentMFE extends BaseElementClass {
         if (this.dom.statusText) this.dom.statusText.innerText = statusLabel;
         if (this.dom.statusTextInner) this.dom.statusTextInner.innerText = statusLabel;
 
-        const date = this.statusData.timestamp ? new Date(this.statusData.timestamp * 1000).toLocaleString() : '—';
+        const date = this.statusData.timestamp ? new Date(this.statusData.timestamp * 1000).toLocaleString([], { timeZone: 'UTC' }) + ' UTC' : '—';
         if (this.dom.statusDetails) {
             this.dom.statusDetails.innerHTML = `
                 <div><strong>Version:</strong> ${this.escapeHTML(this.statusData.version || 'N/A')}</div>
