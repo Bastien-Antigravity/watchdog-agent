@@ -190,6 +190,9 @@ func SetupTelegram(appConfig *toolbox_config.AppConfig, controller core.Watchdog
 	}
 
 	teleClient := toolbox_teleclient.NewTeleClient("Watchdog Agent", ip, port, logger)
+	if cfgErr := teleClient.ConfigureFromAppConfig(appConfig, "watchdog_agent"); cfgErr != nil {
+		logger.Warning("TeleClient policy configuration warning: %v", cfgErr)
+	}
 	mgr := NewMenuManager(teleClient, controller, logger)
 
 	// Hook supervisor circuit breaker alerts to Telegram

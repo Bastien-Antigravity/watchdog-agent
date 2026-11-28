@@ -90,7 +90,7 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 			BuildCmd:  "cargo",
 			BuildArgs: []string{"build"},
 			RunCmd:    filepath.Join(rootDir, "log-server", "target", "debug", "log-server"+exeExt),
-			RunArgs:   []string{"--name", "log_server"},
+			RunArgs:   []string{"--name", "log_server", "--profile", "standalone"},
 			Deps:      []string{},
 			LogColor:  ColorLogServer,
 		},
@@ -101,7 +101,7 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 			BuildCmd:  "go",
 			BuildArgs: []string{"build", "-o", "bin/config-server" + exeExt, "./cmd/config-server"},
 			RunCmd:    filepath.Join(rootDir, "config-server", "bin", "config-server"+exeExt),
-			RunArgs:   []string{},
+			RunArgs:   []string{"--profile", "standalone"},
 			Deps:      []string{"log-server"},
 			LogColor:  ColorConfigServer,
 		},
@@ -124,7 +124,7 @@ func RegisterServices(rootDir, defaultHost string, cfg *config.AppConfig) {
 			BuildArgs: []string{"build", "-o", "bin/web-interface" + exeExt, "./cmd/web-interface"},
 			RunCmd:    filepath.Join(rootDir, "web-interface", "bin", "web-interface"+exeExt),
 			RunArgs:   []string{},
-			Deps:      []string{}, // Starts independently so dashboard is immediately visible even if microservices haven't started
+			Deps:      []string{"log-server", "config-server"},
 			LogColor:  ColorWebInterface,
 		},
 		{
